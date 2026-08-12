@@ -1,5 +1,5 @@
-**STS (Smarter Trading Systems)** is a secure, containerized full-stack architecture designed for the rigorous logging and quantitative analysis of transactional data.
----
+**STS (Smarter Trading Systems)** 
+is a secure, containerized full-stack architecture designed for the rigorous logging and quantitative analysis of transactional data.
 
 ## ✨ Features
 
