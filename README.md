@@ -1,5 +1,6 @@
 # STS Engine
 ### High-Integrity Financial Data Analytics & Transactional Pipeline
+
 **STS (Smarter Trading Systems)** is a secure, containerized full-stack architecture designed for the rigorous logging and quantitative analysis of transactional data.
 
 ## ✨ Features
