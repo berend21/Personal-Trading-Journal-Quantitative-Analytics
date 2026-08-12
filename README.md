@@ -8,7 +8,6 @@
 ## 🛠 Engineering Highlights
 
 *   **Defensive Security Architecture:** Engineered with high-level security protocols including **CSRF protection**, **Bcrypt password hashing**, and secure session management to protect sensitive financial data.
-*   **Database Schema Evolution:** Implemented custom **migration logic** to handle schema changes (such as the JSON-based multi-image gallery migration) without data loss or downtime.
 *   **Complex Data Relationships:** Developed a robust **Parent-Child relational model** in SQLite to accurately track and reconcile partial position closes against their parent entries.
 *   **Performance-Optimized Indexing:** Leveraged custom SQL indexing and **FTS (Full-Text Search)** to maintain sub-second query performance across large datasets of trades, articles, and logs.
 *   **Scalable Deployment:** Fully containerized with **Docker**, ensuring environment parity between development and production NAS/Server environments.
