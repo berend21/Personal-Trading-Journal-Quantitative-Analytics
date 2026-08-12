@@ -1,15 +1,4 @@
-# STS Trading Journal
-
-<div align="center">
-
-**A comprehensive, self-hosted trading journal for traders or investors**
-
-*Track trades, analyze performance, and improve your trading strategy*
-
-[Features](#-features) • [Installation](#-quick-start) • [Configuration](#%EF%B8%8F-configuration) • [Contributing](#-contributing)
-
-</div>
-
+**STS (Smarter Trading Systems)** is a secure, containerized full-stack architecture designed for the rigorous logging and quantitative analysis of transactional data.
 ---
 
 ## ✨ Features
