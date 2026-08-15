@@ -11,7 +11,7 @@ Instead of relying only on screenshots, notes, or memory, STS Engine keeps trade
 
 ---
 
-£ Why STS Engine?
+# Why STS Engine?
 
 Trading generates a lot of information, but it is easy for that information to become fragmented.
 
@@ -139,7 +139,8 @@ A dedicated space for storing and reviewing visual trading material such as:
 <img width="1916" height="914" alt="image" src="https://github.com/user-attachments/assets/9a048b91-16eb-4ffa-a96c-5af73a33df29" />
 
 
-#Technology Stack
+# Technology Stack
+|-|-|-|-|
 |Area|	Technology|
 |Backend|	Python, Flask|
 |Web Server|	Gunicorn|
