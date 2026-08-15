@@ -1,35 +1,105 @@
 # STS Engine
-### *Financial Data Analytics & Transactional Pipeline*
+### *Personal Trading Journal & Quantitative Analytics*
 
-**STS (Smarter Trading Systems)** is a secure, containerized full-stack architecture designed for the rigorous logging and quantitative analysis of transactional data. This platform bridges the gap between raw trading execution and actionable performance data.
+**STS (Smarter Trading Systems)** is a personal trading journal and performance analysis application built to help me record trades, review execution, and understand my trading performance through quantitative data.
 
----
+The goal is simple:
 
-## 🛠 Engineering Highlights
+Turn trading activity into structured data that can be reviewed, measured, and learned from.
 
-*   **Defensive Security Architecture:** Engineered with high-level security protocols including **CSRF protection**, **Bcrypt password hashing**, and secure session management to protect sensitive financial data.
-*   **Complex Data Relationships:** Developed a robust **Parent-Child relational model** in SQLite to accurately track and reconcile partial position closes against their parent entries.
-*   **Performance-Optimized Indexing:** Leveraged custom SQL indexing and **FTS (Full-Text Search)** to maintain sub-second query performance across large datasets of trades, articles, and logs.
-*   **Scalable Deployment:** Fully containerized with **Docker**, ensuring environment parity between development and production NAS/Server environments.
+Instead of relying only on screenshots, notes, or memory, STS Engine keeps trades, partial exits, risk/reward metrics, journal entries, rules, notes, and supporting media in one disorganized place.
 
 ---
 
-## 📊 Analytics & Core Systems
+£ Why STS Engine?
 
-### 🏗 Transactional Logic
-- **Advanced P&L Reconstruction:** Real-time calculation of R:R (Risk/Reward) metrics across multiple timeframe layers (HTF/MTF/LTF).
-- **Partial-Close Engine:** Sophisticated logic to scale out of positions while maintaining accurate cumulative P&L tracking.
+Trading generates a lot of information, but it is easy for that information to become fragmented.
 
-### 📈 Quantitative Dashboard
-- **Performance Modeling:** Automated analysis of win rates, median/average R:R, and Long/Short ratios.
-- **Temporal Filtering:** Dynamic analysis across custom timeframes (Daily through Yearly) utilizing optimized SQL aggregation.
+STS Engine was built to create a structured feedback loop:
 
-### 📚 Knowledge & Asset Management
-- **Integrated Knowledge Base:** A dedicated internal library for technical documentation (PDF/Video/Image support).
-- **Gallery Hub:** High-performance media gallery with infinite scroll and optimized image compression for chart analysis.
+Trade
+  ↓
+Record
+  ↓
+Measure
+  ↓
+Review
+  ↓
+Identify patterns
+  ↓
+Improve
 
----
+The application is primarily designed for personal use and self-hosted environments, rather than multple commercial trading platform or brokers.
 
+# Features
+# 📊 Trading & Performance
+- Record and manage trades
+- Track LONG and SHORT positions
+- Risk/reward (R) calculations
+- Track stop loss, take profit, entry and exit prices
+- Support for partial position closes
+- Parent/child trade relationships
+- Track realized performance
+- Review performance across different time periods
+- Compare LONG vs SHORT performance
+- Import and export trading data with Excel
+
+# 📈 Analytics
+
+The analytics dashboard provides a quantitative view of trading performance, including:
+
+- Win rate
+- Average R
+- Median R
+- Winning and losing trades
+- Long/Short distribution
+- Performance over different time periods
+- Trade-level performance data
+
+The purpose of these metrics is not to predict the market, but to make my own trading behavior easier to evaluate.
+
+# 📝 Trading Journal
+
+Keep contextual information alongside the quantitative data:
+
+- Daily/monthly journal entries
+- Trade notes
+- Trading rules
+- To-do items
+- Reflections and observations
+
+This creates a connection between:
+
+What happened?
+      ↓
+Why did it happen?
+      ↓
+What did I learn?
+      ↓
+What should I do differently?
+
+# 📚 Knowledge Base
+
+A personal knowledge base for storing trading-related material and references.
+
+It can be used for:
+
+- Notes
+- Articles
+- Educational material
+- Images
+- Videos
+- PDFs
+- Trading concepts and references
+# 🖼️ Trading Gallery
+
+A dedicated space for storing and reviewing visual trading material such as:
+
+- Chart screenshots
+- Trade examples
+- Market observations
+- Annotated setups
+- Reference images
 ## 🛠 Technology Stack
 
 *   **Backend:** Python, Flask, Gunicorn
@@ -69,7 +139,19 @@
 <img width="1916" height="914" alt="image" src="https://github.com/user-attachments/assets/9a048b91-16eb-4ffa-a96c-5af73a33df29" />
 
 
-
+#Technology Stack
+|Area|	Technology|
+|Backend|	Python, Flask|
+|Web Server|	Gunicorn|
+|Database|	SQLite|
+|Data Processing|	Pandas|
+|Excel|	OpenPyXL|
+|Image Processing|	Pillow|
+|Authentication|	Flask-Bcrypt|
+|CSRF Protection|	Flask-WTF|
+|Rate Limiting|	Flask-Limiter|
+|Deployment|	Docker|
+|Frontend|HTML, CSS, JavaScript|
 
 
 
