@@ -18,15 +18,15 @@ Trading generates a lot of information, but it is easy for that information to b
 STS Engine was built to create a structured feedback loop:
 
 Trade
-  ↓
+  >
 Record
-  ↓
+  >
 Measure
-  ↓
+  >
 Review
-  ↓
+  >
 Identify patterns
-  ↓
+  >
 Improve
 
 The application is primarily designed for personal use and self-hosted environments, rather than multple commercial trading platform or brokers.
@@ -71,11 +71,11 @@ Keep contextual information alongside the quantitative data:
 This creates a connection between:
 
 What happened?
-      ↓
+      >
 Why did it happen?
-      ↓
+      >
 What did I learn?
-      ↓
+      >
 What should I do differently?
 
 # 📚 Knowledge Base
@@ -263,10 +263,10 @@ STS Engine is not a broker, exchange, trading execution system, or financial ser
 Docker is the preferred way to run the application.
 
 Clone the repository:
-
+```
 git clone https://github.com/berend21/STS-Engine-Quantitative-Data-Pipeline.git
 cd STS-Engine-Quantitative-Data-Pipeline
-
+```
 Build the image:
 ```
 docker build -t sts-engine .
@@ -320,11 +320,11 @@ This is a personal application. The goal is not to build an enterprise trading p
 The priority is:
 
 Reliable data
-    ↓
+    >
 Useful analytics
-    ↓
+    >
 Better review
-    ↓
+    >
 Better decisions
 
 # Roadmap
