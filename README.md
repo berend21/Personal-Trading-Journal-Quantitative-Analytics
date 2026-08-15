@@ -138,10 +138,10 @@ A dedicated space for storing and reviewing visual trading material such as:
 <img width="1918" height="915" alt="image" src="https://github.com/user-attachments/assets/8928f4df-b1b1-4e7f-a7db-93200cf4f83f" />
 <img width="1916" height="914" alt="image" src="https://github.com/user-attachments/assets/9a048b91-16eb-4ffa-a96c-5af73a33df29" />
 
-
 # Technology Stack
-|-|-|-|-|
-|Area|	Technology|
+
+|Area|Technology|
+|-|-|
 |Backend|	Python, Flask|
 |Web Server|	Gunicorn|
 |Database|	SQLite|
