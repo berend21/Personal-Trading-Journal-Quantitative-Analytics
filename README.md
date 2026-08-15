@@ -303,28 +303,20 @@ The application will then be available locally.
 
 STS Engine is built around a few principles:
 
-1. Record the process, not just the result
-
+1. Record the process, not just the result.
 A winning trade does not automatically mean a good trade, and a losing trade does not automatically mean a bad trade.
-
 The goal is to preserve enough context to understand how and why the result occurred.
 
 2. Measure in R
-
 Risk-normalized metrics make trades more comparable and make performance easier to evaluate independently of position size and to remove the money part.
 
 3. Keep quantitative and qualitative information together
-
 Numbers explain what happened.
-
 Journal entries, notes, rules, and screenshots help explain why.
-
 STS Engine is designed to keep both sides of that process together.
 
 4. Prefer useful data over unnecessary complexity
-
 This is a personal application. The goal is not to build an enterprise trading platform.
-
 The priority is:
 
 Reliable data
@@ -335,7 +327,7 @@ Better review
     ↓
 Better decisions
 
-#Roadmap
+# Roadmap
 
 - Possible future improvements include:
 - More detailed equity curve analysis
