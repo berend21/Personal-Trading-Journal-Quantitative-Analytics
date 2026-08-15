@@ -1,4 +1,4 @@
-# STS Engine
+# STS (Smarter Trading Systems)
 ### *Personal Trading Journal & Quantitative Analytics*
 
 **STS (Smarter Trading Systems)** is a personal trading journal and performance analysis application built to help me record trades, review execution, and understand my trading performance through quantitative data.
@@ -11,7 +11,7 @@ Instead of relying only on screenshots, notes, or memory, STS Engine keeps trade
 
 ---
 
-# Why STS Engine?
+# Why STS?
 
 Trading generates a lot of information, but it is easy for that information to become fragmented.
 
