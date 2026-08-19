@@ -84,7 +84,6 @@ def spot():
                 partials_by_parent[pid] = []
             partials_by_parent[pid].append(dict(row))
 
-    # 🚀 SPOT % GAIN CALCULATION (NEW)
     processed_parents = []
     for parent_row in parents:
         parent = dict(parent_row)
