@@ -1,15 +1,52 @@
 # STS (Smarter Trading Systems)
 ### *Personal Trading Journal & Quantitative Analytics*
 
-**STS (Smarter Trading Systems)** is a personal trading journal and performance analysis application built to help me record trades, review execution, and understand my trading performance through quantitative data.
+STS is a personal trading journal and quantitative analytics application designed for self-hosted, private use.
 
-The goal is simple:
+It is intended to run locally on your own computer, home server, or NAS. It is not designed as an online trading platform, SaaS product, or public-facing web application.
 
-Turn trading activity into structured data that can be reviewed, measured, and learned from.
-
-Instead of relying only on screenshots, notes, or memory, STS Engine keeps trades, partial exits, risk/reward metrics, journal entries, rules, notes, and supporting media in one disorganized place.
+The goal is to provide a private environment for recording trades, reviewing execution, and analysing trading performance over time.
 
 ---
+
+# Philosophy
+STS deliberately focuses on R-multiples rather than money as the primary measure of trading performance.
+
+The purpose is not to maximise a monetary P&L number on a dashboard. Instead, the application is designed to help answer questions such as:
+
+Am I following my trading plan?
+Am I taking valid setups?
+Is my execution consistent?
+What is my expectancy in R?
+Which setups have a positive expectancy?
+Where am I consistently giving R back?
+Am I improving over a sufficiently large sample?
+
+# Why R instead of euros or dollars?
+A monetary result can easily become an emotional score.
+
+R provides a normalized way of looking at the same outcome.
+
+If 1R represents the amount initially risked on a trade:
+
++2R means the trade returned twice the initial risk.
++0.5R means the trade returned half the initial risk.
+-1R means the predefined risk was lost.
++3R has the same meaning whether 1R was €5, €50, or €500.
+This makes trades comparable across different position sizes and account values.
+
+The intention is therefore to keep the main performance analysis in R, rather than euros, dollars, or other currencies.
+
+The objective is not to make more money per trade. The objective is to execute the trading process consistently and evaluate the resulting R distribution over a meaningful sample.
+
+# Personal and Private by Design
+STS is primarily intended for one person's private trading journal.
+
+The application is suitable for running behind your home network or another private network.
+
+It is not intended to be exposed directly to the public internet.
+
+If remote access is required, use an appropriate private-network solution such as a VPN rather than exposing the application directly to the internet.
 
 # Why STS?
 
