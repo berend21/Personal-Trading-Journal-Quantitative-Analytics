@@ -79,7 +79,6 @@ The application is primarily designed for personal use and self-hosted environme
 - Track realized performance
 - Review performance across different time periods
 - Compare LONG vs SHORT performance
-- Import and export trading data with Excel
 
 # 📈 Analytics
 
@@ -266,18 +265,6 @@ Trade C: -0.75R
 
 This makes performance easier to compare across trades.
 
-# Import & Export
-
-Trading data can be imported and exported using Excel files.
-
-This makes it possible to:
-
-Bring existing trade history into STS Engine
-Edit or analyze data externally
-Maintain backups of structured trade data
-Move data between systems
-
-Importing data is intended to complement the application rather than lock the trading history into a proprietary format.
 
 # Security
 
