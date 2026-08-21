@@ -74,25 +74,29 @@
                 {{ nav_link('settings.webp', 'Settings', 'settings') }}
             </div>
             <hr class="navbar-divider-user" aria-hidden="true">
-            {% if session.logged_in %}
+            {% if session.get('user_id') %}
                 <div class="nav-user" role="group" aria-label="User account">
                     <div class="user-header">
                         <div class="user-avatar">
-                            <span class="user-initial">{{ session.username[0].upper() }}</span>
+                            <span class="user-initial">{{ session.get('username', '?')[0].upper() }}</span>
                         </div>
+
                         <div class="user-details">
-                            <div class="username">{{ session.username }}</div>
+                            <div class="username">{{ session.get('username', '') }}</div>
+
                             <div class="user-status">
                                 <span class="status-dot"></span>
                                 <span class="status-text">Active</span>
                             </div>
                         </div>
                     </div>
+
                     <a href="{{ url_for('logout') }}" class="logout-btn" title="Sign Out">
                         <i class="fas fa-sign-out-alt"></i>
                     </a>
                 </div>
-                {% endif %}
+            {% endif %}
+
         </nav>
 
         <main class="main-content" id="main-content">
