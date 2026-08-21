@@ -3,12 +3,12 @@ from extensions import app
 from database import get_db
 from login import login_required
 from werkzeug.utils import secure_filename
-import time
 import os
 import json
 import math
+from uuid import uuid4
 
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'mp4', 'webm', 'ogg'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
 
 @app.route('/gallery', methods=['GET', 'POST'])
@@ -36,7 +36,7 @@ def gallery():
             for image in images:
                 if image.filename == '': continue
                 filename = secure_filename(image.filename)
-                filename = f"gallery_{int(time.time())}_{filename}"
+                filename = f"gallery_{uuid4().hex}_{filename}"
                 filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 image.save(filepath)
                 image_paths.append(filename)
@@ -91,7 +91,6 @@ def gallery():
         flash('Invalid action', 'error')
         return redirect(url_for('gallery'))
 
-    # 🔥 NEW SORTING LOGIC
     page = request.args.get('page', 1, type=int)
     search = request.args.get('search', '').strip()
     sort_order = request.args.get('sort', 'desc')  # 'desc' (newest) or 'asc' (oldest)
@@ -106,7 +105,6 @@ def gallery():
         search_param = f"%{search}%"
         search_params = [search_param, search_param]
 
-    # Count total for pagination
     count_query = f"SELECT COUNT(*) as total FROM gallery {where_clause}"
     total_posts = conn.execute(count_query, search_params).fetchone()['total']
     
@@ -118,13 +116,12 @@ def gallery():
     total_images = total_images_result['total_images'] or 0
     total_pages = math.ceil(total_posts / per_page)
 
-    # 🔥 DYNAMIC SORTING ORDER
     if sort_order == 'asc':
         order_by = "ORDER BY created_at ASC"  # Oldest first
     else:
         order_by = "ORDER BY created_at DESC"  # Newest first (default)
 
-    # Fetch current page with dynamic sorting
+    # 
     query = f"""
         SELECT * FROM gallery {where_clause}
         {order_by}
@@ -167,4 +164,9 @@ def gallery():
                         total_images=total_images    
     )
 def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    if not filename or '.' not in filename:
+        return False
+
+    extension = filename.rsplit('.', 1)[1].lower()
+    return extension in ALLOWED_EXTENSIONS
+
