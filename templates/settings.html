@@ -8,69 +8,77 @@
 {% block content %}
 <div class="settings-container">
     <h1 class="page-title">Settings</h1>
-
-    <div class="settings-card">
-        <h2>Data Management</h2>
-        
-        <div class="data-management-grid">
-            <div class="management-card">
-                <div class="card-header">
-                    <h3>Import Trades</h3>
-                    <p class="card-subtitle">Upload your trade history (.xlsx)</p>
-                </div>
-                <form action="{{ url_for('import_trades') }}" method="post" enctype="multipart/form-data" class="import-form">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <div class="file-input-wrapper">
-                        <input type="file" name="import_file" id="import-file" accept=".xlsx" required>
-                        <label for="import-file" class="file-label">
-                            <span class="upload-icon">📤</span>
-                            Choose .xlsx file
-                        </label>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Import Trades</button>
-                </form>
-            </div>
-
-            <div class="management-card">
-                <div class="card-header">
-                    <h3>Export Trades</h3>
-                    <p class="card-subtitle">Download all your trades as Excel</p>
-                </div>
-                <form method="get" action="{{ url_for('export_trades') }}">
-                    <button type="submit" class="btn btn-secondary">Export All Trades (.xlsx)</button>
-                </form>
-            </div>
-        </div>
-    </div>
+   
 
     <div class="settings-card">
         <h2>Account Settings</h2>
        
         <form method="POST" class="settings-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="change_email">
+
             <div class="form-group">
                 <label for="new_email">Email Address</label>
-                <input type="email" id="new_email" name="new_email" value="{{ user['email'] }}" required>
+                <input
+                    type="email"
+                    id="new_email"
+                    name="new_email"
+                    value="{{ user['email'] }}"
+                    autocomplete="email"
+                    required
+                >
             </div>
-            <button type="submit" class="btn btn-primary">Update Email</button>
+
+            <button type="submit" class="btn btn-primary">
+                Update Email
+            </button>
         </form>
+
 
         <form method="POST" class="settings-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="change_password">
+
             <div class="form-group">
                 <label for="current_password">Current Password</label>
-                <input type="password" id="current_password" name="current_password" required>
+                <input
+                    type="password"
+                    id="current_password"
+                    name="current_password"
+                    autocomplete="current-password"
+                    required
+                >
             </div>
+
             <div class="form-group">
                 <label for="new_password">New Password</label>
-                <input type="password" id="new_password" name="new_password" required>
+                <input
+                    type="password"
+                    id="new_password"
+                    name="new_password"
+                    autocomplete="new-password"
+                    minlength="7"
+                    required
+                >
             </div>
+
             <div class="form-group">
                 <label for="confirm_password">Confirm New Password</label>
-                <input type="password" id="confirm_password" name="confirm_password" required>
+                <input
+                    type="password"
+                    id="confirm_password"
+                    name="confirm_password"
+                    autocomplete="new-password"
+                    minlength="7"
+                    required
+                >
             </div>
-            <button type="submit" class="btn btn-primary">Change Password</button>
+
+            <button type="submit" class="btn btn-primary">
+                Change Password
+            </button>
         </form>
+
     </div>
 
     <div class="settings-card about-card">
@@ -78,8 +86,8 @@
         <div class="about-content">
             <div class="about-info">
                 <p><strong>Application:</strong> STS (Smarter Trading Systems)</p>
-                <p><strong>Version:</strong> <span id="appVersion">0.3</span></p>
-                <p><strong>Build Date:</strong> <span id="buildDate">June 2025</span></p>
+                <p><strong>Version:</strong> <span id="appVersion">{{ app_version }}</span></p>
+                <p><strong>Build Date:</strong> <span id="buildDate">{{ build_date }}</span></p>
             </div>
             <p class="about-description">
                 STS helps traders track and analyze their performance with clear insights into 
