@@ -9,16 +9,21 @@
 <div class="keep-container">
     <h1 class="page-title">Notes</h1>
 
-    <div class="search-bar">
-        <input type="text" id="searchInput" placeholder="Search notes..." title="Type to filter by title or content" oninput="filterNotes()">
+    <form class="search-bar" method="GET" action="{{ url_for('notes') }}">
+        <input type="search" id="searchInput" name="search" value="{{ search }}" placeholder="Search notes..." title="Search by title or content">
         <i class="fas fa-search search-icon"></i>
-    </div>
+    </form>
 
-    <div class="new-note" id="newNote">
-        <input type="text" id="newTitle" placeholder="Title (optional)" title="Add a title">
-        <textarea id="newContent" placeholder="Take a note..." title="Write your note here"></textarea>
+
+    <form class="new-note" id="newNote" method="POST" action="{{ url_for('notes') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="create">
+        <input type="hidden" name="search" value="{{ search }}">
+        <input type="text" id="newTitle" name="title" placeholder="Title (optional)" title="Add a title maxlength="200">
+        <textarea id="newContent" name="content" placeholder="Take a note..." title="Write your note here" maxlength="100000" required></textarea>
+
         <div class="new-note-actions">
-            <select id="newColor" title="Choose color">
+            <select id="newColor" name="color" title="Choose color">
                 <option value="#fff475">Yellow</option>
                 <option value="#fbbc04">Orange</option>
                 <option value="#ccff90">Green</option>
@@ -30,16 +35,22 @@
                 <option value="#e8eaed">Gray</option>
                 <option value="#ffffff">White</option>
             </select>
-            <button onclick="createNote()" title="Create note"><i class="fas fa-plus"></i> Add</button>
-            <button onclick="closeNewNote()" title="Close"><i class="fas fa-times"></i> Close</button>
+
+            <button type="submit" title="Create note">
+                <i class="fas fa-plus"></i> Add
+            </button>
+
+            <button type="button" onclick="closeNewNote()" title="Close">
+                <i class="fas fa-times"></i> Close
+            </button>
         </div>
-    </div>
+    </form>
 
     <div id="pinnedSection" class="notes-section">
         <h2><i class="fas fa-thumbtack"></i> Pinned</h2>
         <div class="notes-masonry">
             {% for note in pinned_notes %}
-            <div class="note-card" data-id="{{ note.id }}" data-title="{{ note.title|lower }}" data-content="{{ note.content|lower }}" data-color="{{ note.color }}" style="background-color: {{ note.color }};">
+            <div class="note-card" data-id="{{ note.id }}" data-color="{{ note.color }}" style="background-color: {{ note.color }};">
                 <h3>{{ note.title or '' }}</h3>
                 <p>{{ note.content }}</p>
                 <div class="note-actions">
@@ -48,6 +59,7 @@
                         <input type="hidden" name="action" value="pin">
                         <input type="hidden" name="id" value="{{ note.id }}">
                         <input type="hidden" name="pinned" value="{{ note.pinned }}">
+                        <input type="hidden" name="search" value="{{ search }}">
                         <button type="submit" class="pin-btn {% if note.pinned %}pinned{% endif %}"><i class="fas fa-thumbtack"></i></button>
                     </form>
                     <button class="view-btn" onclick="openViewModal({{ note.id }})" title="View"><i class="fas fa-eye"></i></button>
@@ -56,6 +68,7 @@
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="id" value="{{ note.id }}">
+                        <input type="hidden" name="search" value="{{ search }}">
                         <button type="submit" class="delete-btn"><i class="fas fa-trash"></i></button>
                     </form>
                 </div>
@@ -68,7 +81,7 @@
         <h2>Others</h2>
         <div class="notes-masonry">
             {% for note in other_notes %}
-            <div class="note-card" data-id="{{ note.id }}" data-title="{{ note.title|lower }}" data-content="{{ note.content|lower }}" data-color="{{ note.color }}" style="background-color: {{ note.color }};">
+            <div class="note-card" data-id="{{ note.id }}" data-color="{{ note.color }}" style="background-color: {{ note.color }};">
                 <h3>{{ note.title or '' }}</h3>
                 <p>{{ note.content }}</p>
                 <div class="note-actions">
@@ -77,6 +90,7 @@
                         <input type="hidden" name="action" value="pin">
                         <input type="hidden" name="id" value="{{ note.id }}">
                         <input type="hidden" name="pinned" value="{{ note.pinned }}">
+                        <input type="hidden" name="search" value="{{ search }}">
                         <button type="submit" class="pin-btn {% if note.pinned %}pinned{% endif %}"><i class="fas fa-thumbtack"></i></button>
                     </form>
                     <button class="view-btn" onclick="openViewModal({{ note.id }})" title="View"><i class="fas fa-eye"></i></button>
@@ -85,6 +99,7 @@
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="id" value="{{ note.id }}">
+                        <input type="hidden" name="search" value="{{ search }}">
                         <button type="submit" class="delete-btn"><i class="fas fa-trash"></i></button>
                     </form>
                 </div>
@@ -113,8 +128,9 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="action" value="edit">
             <input type="hidden" id="edit_id" name="id">
-            <input type="text" id="edit_title" name="title" placeholder="Title (optional)">
-            <textarea id="edit_content" name="content" placeholder="Content" required></textarea>
+            <input type="hidden" name="search" value="{{ search }}">
+            <input type="text" id="edit_title" name="title" placeholder="Title (optional)" maxlength="200">
+            <textarea id="edit_content" name="content" placeholder="Content" maxlength="100000" required></textarea>
             <select id="edit_color" name="color">
                 <option value="#fff475">Yellow</option>
                 <option value="#fbbc04">Orange</option>
@@ -144,28 +160,7 @@
 <script>
 const csrfToken = '{{ csrf_token() }}'; 
 
-function filterNotes() {
-    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-    const allNotes = document.querySelectorAll('.note-card');
-    const noResults = document.getElementById('noResults');
-    let visibleCount = 0;
-    allNotes.forEach(note => {
-        const title = note.dataset.title || '';
-        const content = note.dataset.content || '';
-        if (title.includes(searchTerm) || content.includes(searchTerm)) {
-            note.style.display = 'block';
-            note.classList.add('fade-in');
-            visibleCount++;
-        } else {
-            note.style.display = 'none';
-        }
-    });
-    const pinnedSection = document.getElementById('pinnedSection');
-    const othersSection = document.getElementById('othersSection');
-    pinnedSection.style.display = (Array.from(pinnedSection.querySelectorAll('.note-card')).some(n => n.style.display !== 'none')) ? 'block' : 'none';
-    othersSection.style.display = (Array.from(othersSection.querySelectorAll('.note-card')).some(n => n.style.display !== 'none')) ? 'block' : 'none';
-    noResults.style.display = (visibleCount === 0 && searchTerm) ? 'block' : 'none';
-}
+
 
 document.getElementById('newContent').addEventListener('focus', expandNewNote);
 document.getElementById('newTitle').addEventListener('focus', expandNewNote);
@@ -182,27 +177,7 @@ function closeNewNote() {
     document.getElementById('newContent').value = '';
 }
 
-function createNote() {
-    const title = document.getElementById('newTitle').value.trim();
-    const content = document.getElementById('newContent').value.trim();
-    const color = document.getElementById('newColor').value;
-    if (!content) {
-        alert('Please add some content to your note!');
-        return;
-    }
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = '{{ url_for("notes") }}';
-    form.innerHTML = `
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="action" value="create">
-        <input type="hidden" name="title" value="${title}">
-        <input type="hidden" name="content" value="${content}">
-        <input type="hidden" name="color" value="${color}">
-    `;
-    document.body.appendChild(form);
-    form.submit();
-}
+
 
 function openEditModal(noteId) {
     const note = document.querySelector(`.note-card[data-id="${noteId}"]`);
@@ -254,30 +229,8 @@ window.onclick = function(event) {
     }
 }
 
-document.getElementById('newContent').addEventListener('paste', function(e) {
-    const items = e.clipboardData.items;
-    for (let item of items) {
-        if (item.type.indexOf('image') !== -1) {
-            const blob = item.getAsFile();
-            console.log('Image pasted:', blob);
 
-        }
-    }
-});
 
-function copyImageToClipboard() {
-    const img = document.getElementById('view_image');
-    if (img.src) {
-        fetch(img.src)
-            .then(res => res.blob())
-            .then(blob => {
-                navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })])
-                    .then(() => alert('Image copied to clipboard!'))
-                    .catch(err => alert('Failed to copy: ' + err));
-            });
-    } else {
-        alert('No image to copy!');
-    }
-}
+
 </script>
 {% endblock %}
