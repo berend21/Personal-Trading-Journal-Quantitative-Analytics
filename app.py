@@ -1,14 +1,11 @@
 # STS Trading Journal - Built by a legend in 2025
 # Lightning fast, faster than these other tradesystems
 
-from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file, jsonify, g
+from flask import render_template, request, redirect, url_for, flash, session, send_file, jsonify, g
 import sqlite3
 import os
 
 from functools import wraps
-from flask_limiter.util import get_remote_address
-
-from datetime import datetime
 import io
 from datetime import datetime, timedelta
 
@@ -20,6 +17,10 @@ import logging
 from logging.handlers import RotatingFileHandler
 import json
 from extensions import app
+
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
 
 csrf = CSRFProtect(app)
 
@@ -38,6 +39,7 @@ PERMANENT_SESSION_LIFETIME = timedelta(hours=24)
 
 ##Import modules
 from database import *
+app.teardown_appcontext(close_db)
 from login import *
 from spot import *
 from journal import *
@@ -190,8 +192,7 @@ def compress_image(file, max_width=2000, quality=100):  #
         logging.error(f"Image compression failed: {e}")
         file.seek(0)  
         return file  
-    
-init_db()
+
 
 
 
@@ -266,4 +267,5 @@ if __name__ == '__main__':
     init_db()
     app.run(host='127.0.0.1',  
         port=5000,
-        debug=True)
+        debug=True,
+        use_reloader=False)
