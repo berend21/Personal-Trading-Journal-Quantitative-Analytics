@@ -16,86 +16,74 @@ print("DATABASE EXISTS:", os.path.exists(DATABASE))
 
 def init_db():
     conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-    migrate_gallery_table()
-    
- 
-
-
-    cursor.execute('''CREATE TABLE IF NOT EXISTS trades (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    symbol TEXT NOT NULL, 
-                    open_time TEXT,
-                    close_time TEXT,
-                    type TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    sort TEXT NOT NULL,
-                    open_price REAL,
-                    close_price REAL,
-                    risk REAL,
-                    SL REAL,
-                    TP REAL,
-                    RR REAL,
-                    reason TEXT,
-                    feedback TEXT,
-                    reason_image TEXT,
-                    feedback_image TEXT,
-                    parent_id INTEGER)''')
-
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_parent_id ON trades(parent_id)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_open_time ON trades(open_time)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_status ON trades(status)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_symbol ON trades(symbol)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_sort ON trades(sort)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_parent_open ON trades(parent_id, open_time DESC)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_parent_status ON trades(parent_id, status)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_close_time ON trades(close_time)")
-
-    cursor.execute("""CREATE TABLE IF NOT EXISTS spot_trades (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    symbol TEXT NOT NULL, 
-                    open_time TEXT,
-                    close_time TEXT,
-                    status TEXT NOT NULL,
-                    open_price REAL,
-                    close_price REAL,
-                    risk REAL,
-                    SL REAL,
-                    TP REAL,
-
-                    reason TEXT,
-                    feedback TEXT,
-                    reason_image TEXT,
-                    feedback_image TEXT,
-                    Gain REAL,
-                    parent_id INTEGER)""")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_spot_trades_symbol ON spot_trades(symbol);")
+    try:
+        cursor = conn.cursor()
+        migrate_gallery_table()
+        
     
 
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
+
+        cursor.execute('''CREATE TABLE IF NOT EXISTS trades (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        symbol TEXT NOT NULL, 
+                        open_time TEXT,
+                        close_time TEXT,
+                        type TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        sort TEXT NOT NULL,
+                        open_price REAL,
+                        close_price REAL,
+                        risk REAL,
+                        SL REAL,
+                        TP REAL,
+                        RR REAL,
+                        reason TEXT,
+                        feedback TEXT,
+                        reason_image TEXT,
+                        feedback_image TEXT,
+                        parent_id INTEGER,
+                        initial_risk REAL)''')
+
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_parent_id ON trades(parent_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_open_time ON trades(open_time)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_status ON trades(status)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_symbol ON trades(symbol)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sort ON trades(sort)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_parent_open ON trades(parent_id, open_time DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_parent_status ON trades(parent_id, status)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_close_time ON trades(close_time)")
+
+        cursor.execute("""CREATE TABLE IF NOT EXISTS spot_trades (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
+                        symbol TEXT NOT NULL, 
+                        open_time TEXT,
+                        close_time TEXT,
+                        status TEXT NOT NULL,
+                        open_price REAL,
+                        close_price REAL,
+                        risk REAL,
+                        SL REAL,
+                        TP REAL,
 
-    cursor.execute('''CREATE TABLE IF NOT EXISTS journal_entries(
-                   id INTEGER PRIMARY KEY AUTOINCREMENT,
-                   date DATE NOT NULL,
-                   entry_type TEXT NOT NULL CHECK(entry_type IN('daily', 'weekly', 'monthly')),
-                   content TEXT,
-                   week_start_date DATE,
-                   month_start_date DATE,
-                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+                        reason TEXT,
+                        feedback TEXT,
+                        reason_image TEXT,
+                        feedback_image TEXT,
+                        Gain REAL,
+                        parent_id INTEGER)""")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_spot_trades_symbol ON spot_trades(symbol);")
+        
 
-    cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='journal_entries'")
-    row = cursor.fetchone()
-    if row and "'monthly'" not in row[0]: 
-        cursor.execute("ALTER TABLE journal_entries RENAME TO journal_entries_old")
-        cursor.execute('''CREATE TABLE journal_entries(
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        cursor.execute('''CREATE TABLE IF NOT EXISTS journal_entries(
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     date DATE NOT NULL,
                     entry_type TEXT NOT NULL CHECK(entry_type IN('daily', 'weekly', 'monthly')),
@@ -104,115 +92,131 @@ def init_db():
                     month_start_date DATE,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-        cursor.execute("INSERT INTO journal_entries SELECT * FROM journal_entries_old") 
-        cursor.execute("DROP TABLE journal_entries_old")
-        print("Migrated journal_entries table: Added 'monthly' to CHECK constraint.")
-    conn.commit() 
 
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_journal_date ON journal_entries(date)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_journal_type ON journal_entries(entry_type)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_journal_week ON journal_entries(week_start_date)")
+        cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='journal_entries'")
+        row = cursor.fetchone()
+        if row and "'monthly'" not in row[0]: 
+            cursor.execute("ALTER TABLE journal_entries RENAME TO journal_entries_old")
+            cursor.execute('''CREATE TABLE journal_entries(
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        date DATE NOT NULL,
+                        entry_type TEXT NOT NULL CHECK(entry_type IN('daily', 'weekly', 'monthly')),
+                        content TEXT,
+                        week_start_date DATE,
+                        month_start_date DATE,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+            cursor.execute("INSERT INTO journal_entries SELECT * FROM journal_entries_old") 
+            cursor.execute("DROP TABLE journal_entries_old")
+            print("Migrated journal_entries table: Added 'monthly' to CHECK constraint.")
+        conn.commit() 
 
-    ##rules
-    ##todo
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS todos1 (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            list_type TEXT NOT NULL, -- 'ticker' or 'todo'
-            content TEXT NOT NULL,
-            completed INTEGER DEFAULT 0
-        )
-    ''')
-    ###notes
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS notes1 (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT,
-            content TEXT NOT NULL,
-            color TEXT DEFAULT 'yellow',
-            pinned INTEGER DEFAULT 0, 
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            image_url TEXT DEFAULT NULL
-        )
-    ''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS gallery (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    title TEXT NOT NULL,
-                    description TEXT,
-                    image_path TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )''')
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_gallery_title ON gallery(title)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_gallery_description ON gallery(description)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_journal_date ON journal_entries(date)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_journal_type ON journal_entries(entry_type)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_journal_week ON journal_entries(week_start_date)")
 
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS knowledge_articles (
+        ##rules
+        ##todo
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS todos1 (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                list_type TEXT NOT NULL, -- 'ticker' or 'todo'
+                content TEXT NOT NULL,
+                completed INTEGER DEFAULT 0
+            )
+        ''')
+        ###notes
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS notes1 (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT,
+                content TEXT NOT NULL,
+                color TEXT DEFAULT 'yellow',
+                pinned INTEGER DEFAULT 0, 
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                image_url TEXT DEFAULT NULL
+            )
+        ''')
+        cursor.execute('''CREATE TABLE IF NOT EXISTS gallery (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        title TEXT NOT NULL,
+                        description TEXT,
+                        image_path TEXT NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_gallery_title ON gallery(title)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_gallery_description ON gallery(description)")
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS knowledge_articles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                content TEXT NOT NULL,
+                category TEXT,
+                tags TEXT,
+                featured_image TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+                type TEXT
+            )
+        ''')
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_title ON knowledge_articles(title)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_category ON knowledge_articles(category)")
+
+        cursor.executescript("""
+            CREATE INDEX IF NOT EXISTS idx_trades_closed_rr ON trades(status, RR) WHERE status = 'CLOSED' AND RR IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS idx_trades_parent_closed ON trades(parent_id, status) WHERE parent_id IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS idx_trades_open_date ON trades(open_time);
+            CREATE INDEX IF NOT EXISTS idx_trades_close_date ON trades(close_time);
+            CREATE INDEX IF NOT EXISTS idx_knowledge_type ON knowledge_articles(type);
+        """)
+
+        conn.executescript("""
+            -- Gallery
+            CREATE INDEX IF NOT EXISTS idx_gallery_created ON gallery(created_at DESC);
+            
+            -- Knowledge
+            CREATE INDEX IF NOT EXISTS idx_knowledge_created ON knowledge_articles(created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_knowledge_type_created ON knowledge_articles(type, created_at DESC);
+            
+            -- Notes
+            CREATE INDEX IF NOT EXISTS idx_notes_pinned_updated ON notes1(pinned DESC, updated_at DESC);
+            
+            -- Journal entries
+            CREATE INDEX IF NOT EXISTS idx_journal_date_type ON journal_entries(date, entry_type);
+            
+            -- Todos
+            CREATE INDEX IF NOT EXISTS idx_todos_type ON todos1(list_type);
+        """)
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS trading_rules (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
             content TEXT NOT NULL,
-            category TEXT,
-            tags TEXT,
-            featured_image TEXT,
+            category TEXT DEFAULT 'general',
+            color TEXT DEFAULT 'yellow',
+            pinned INTEGER DEFAULT 0,
+            order_index INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
-            type TEXT
-        )
-    ''')
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_title ON knowledge_articles(title)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_category ON knowledge_articles(category)")
-
-    cursor.executescript("""
-        CREATE INDEX IF NOT EXISTS idx_trades_closed_rr ON trades(status, RR) WHERE status = 'CLOSED' AND RR IS NOT NULL;
-        CREATE INDEX IF NOT EXISTS idx_trades_parent_closed ON trades(parent_id, status) WHERE parent_id IS NOT NULL;
-        CREATE INDEX IF NOT EXISTS idx_trades_open_date ON trades(open_time);
-        CREATE INDEX IF NOT EXISTS idx_trades_close_date ON trades(close_time);
-        CREATE INDEX IF NOT EXISTS idx_knowledge_type ON knowledge_articles(type);
-    """)
-
-    conn.executescript("""
-        -- Gallery
-        CREATE INDEX IF NOT EXISTS idx_gallery_created ON gallery(created_at DESC);
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_rules_category ON trading_rules(category)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_rules_pinned ON trading_rules(pinned)")
         
-        -- Knowledge
-        CREATE INDEX IF NOT EXISTS idx_knowledge_created ON knowledge_articles(created_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_knowledge_type_created ON knowledge_articles(type, created_at DESC);
-        
-        -- Notes
-        CREATE INDEX IF NOT EXISTS idx_notes_pinned_updated ON notes1(pinned DESC, updated_at DESC);
-        
-        -- Journal entries
-        CREATE INDEX IF NOT EXISTS idx_journal_date_type ON journal_entries(date, entry_type);
-        
-        -- Todos
-        CREATE INDEX IF NOT EXISTS idx_todos_type ON todos1(list_type);
-    """)
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS trading_rules (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        content TEXT NOT NULL,
-        category TEXT DEFAULT 'general',
-        color TEXT DEFAULT 'yellow',
-        pinned INTEGER DEFAULT 0,
-        order_index INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_rules_category ON trading_rules(category)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_rules_pinned ON trading_rules(pinned)")
-    
 
 
-    user_count = cursor.execute('SELECT COUNT(*) FROM users').fetchone()[0]
-    if user_count == 0:
-        default_email = 'admin@admin.com'
-        default_password = '12345678'
-        hashed = generate_password_hash(default_password)
-        cursor.execute('INSERT INTO users (email, password) VALUES (?,?)', (default_email, hashed))
+        user_count = cursor.execute('SELECT COUNT(*) FROM users').fetchone()[0]
+        if user_count == 0:
+            default_email = 'admin@admin.com'
+            default_password = '12345678'
+            hashed = generate_password_hash(default_password)
+            cursor.execute('INSERT INTO users (email, password) VALUES (?,?)', (default_email, hashed))
 
-    conn.commit()
+        conn.commit()
+    finally:
+        conn.close()
      
 
 
