@@ -1,6 +1,5 @@
 import sqlite3
 import json
-
 from flask import g
 from werkzeug.security import generate_password_hash
 import os
@@ -12,17 +11,12 @@ os.makedirs(DATA_DIR, exist_ok=True)
 print("DATABASE USED BY FLASK:", DATABASE)
 print("DATABASE EXISTS:", os.path.exists(DATABASE))
 
-
-
 def init_db():
     conn = sqlite3.connect(DATABASE)
     try:
         cursor = conn.cursor()
         migrate_gallery_table()
-        
-    
-
-
+ 
         cursor.execute('''CREATE TABLE IF NOT EXISTS trades (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         symbol TEXT NOT NULL, 
@@ -42,7 +36,8 @@ def init_db():
                         reason_image TEXT,
                         feedback_image TEXT,
                         parent_id INTEGER,
-                        initial_risk REAL)''')
+                        initial_risk REAL,
+                        risk_action TEXT)''')
 
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_parent_id ON trades(parent_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_open_time ON trades(open_time)")
@@ -204,9 +199,7 @@ def init_db():
         ''')
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_rules_category ON trading_rules(category)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_rules_pinned ON trading_rules(pinned)")
-        
-
-
+    
         user_count = cursor.execute('SELECT COUNT(*) FROM users').fetchone()[0]
         if user_count == 0:
             default_email = 'admin@admin.com'
@@ -217,11 +210,7 @@ def init_db():
         conn.commit()
     finally:
         conn.close()
-     
-
-
-
-
+   
 def get_db():
     if 'db' not in g:
         g.db = sqlite3.connect(DATABASE, timeout=30.0, check_same_thread=False)
@@ -231,7 +220,6 @@ def get_db():
         g.db.execute("PRAGMA cache_size=-64000;")   # 64MB cache
         g.db.execute("PRAGMA foreign_keys=ON;")
     return g.db
-
 
 def close_db(error=None):
     db = g.pop('db', None)
@@ -254,9 +242,9 @@ def migrate_gallery_table():
     updated = False
     for row in rows:
         image_path = row['image_path']
-        if image_path:  # Skip if null/empty
+        if image_path: 
             try:
-                json.loads(image_path)  # If it's already valid JSON, skip
+                json.loads(image_path) 
             except json.JSONDecodeError:
                 json_paths = json.dumps([image_path])
                 cursor.execute("UPDATE gallery SET image_path = ? WHERE id = ?", (json_paths, row['id']))
