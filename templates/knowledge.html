@@ -176,7 +176,7 @@ function switchTab(tab) {
     }
 }
 
-function updateFormForType(selectedType) {
+function updateFormForType(selectedType, isEditing = false) {
     const contentGroup = document.getElementById('contentGroup');
     const fileGroup = document.getElementById('fileGroup');
     const contentTextarea = document.getElementById('content');
@@ -194,7 +194,7 @@ function updateFormForType(selectedType) {
         contentGroup.querySelector('label').textContent = 'Description';
         contentTextarea.required = false;
         fileLabel.textContent = 'Document File *';
-        fileInput.required = true;
+        fileInput.required = !isEditing;
         fileInput.accept = '.pdf,video/*,image/*';
         document.querySelector('.file-info').textContent = 'Required: Upload PDF, video, or image. Max 50MB.';
     }
@@ -219,7 +219,7 @@ function toggleUploadForm(mode = 'upload', type = 'learning') {
             document.getElementById('category').value = article.category;
             document.getElementById('tags').value = article.tags;
             document.getElementById('entryType').value = article.type;
-            updateFormForType(article.type);  
+            updateFormForType(article.type, true);  
         })
         .catch(error => console.error('Error fetching for edit:', error));
     } else {
@@ -264,14 +264,34 @@ function openDocument(id) {
         const modalBody = document.getElementById('modalBody');
         modalBody.innerHTML = ''; 
         
-        let contentHtml = `
-            <div class="entry-content">${article.content ? article.content.replace(/\n/g, '<br>') : 'No content'}</div>
-            <div class="entry-meta">
-                Category: ${article.category || 'None'} | Tags: ${article.tags || 'None'} | Type: ${article.type}
-                <br>Created: ${article.created_at} | Updated: ${article.updated_at}
-            </div>
-        `;
-        modalBody.innerHTML += contentHtml;
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'entry-content';
+        contentDiv.textContent = article.content || 'No content';
+
+        const metaDiv = document.createElement('div');
+        metaDiv.className = 'entry-meta';
+
+        const category = article.category || 'None';
+        const tags = article.tags || 'None';
+        const type = article.type || 'document';
+        const createdAt = article.created_at || '';
+        const updatedAt = article.updated_at || '';
+
+        metaDiv.textContent =
+            `Category: ${category} | Tags: ${tags} | Type: ${type}`;
+
+        const dateBreak = document.createElement('br');
+        metaDiv.appendChild(dateBreak);
+
+        metaDiv.appendChild(
+            document.createTextNode(
+                `Created: ${createdAt} | Updated: ${updatedAt}`
+            )
+        );
+
+        modalBody.appendChild(contentDiv);
+        modalBody.appendChild(metaDiv);
+
         
         if (article.featured_image) {
             const fileUrl = `/static/uploads/knowledge/${article.featured_image}`;
@@ -384,9 +404,10 @@ document.getElementById('documentModal').addEventListener('click', e => {
 
 
 document.addEventListener('DOMContentLoaded', () => {
-
-    document.querySelectorAll('.article-card').forEach(card => card.style.display = 'block');
-    switchTab('document');  
+    document.querySelectorAll('.article-card').forEach(card => {
+        card.style.display = 'block';
+    });
 });
+
 </script>
 {% endblock %}
