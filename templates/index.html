@@ -124,7 +124,7 @@
                         </td>
                         <td data-label="Open Price" data-value="{% if user.open_price %}{{ user.open_price|smart_price }}{% endif %}" class="editable" data-field="open_price">{% if user.open_price %}${{ user.open_price|smart_price }}{% endif %}</td>
                         <td data-label="Close Price" data-value="{% if user.close_price %}{{ user.close_price|smart_price }}{% endif %}" class="editable" data-field="close_price">{% if user.close_price %}${{ user.close_price|smart_price }}{% endif %}</td>
-                        <td data-label="Risk" data-value="{{ user.risk|smart_price }}" class="editable" data-field="risk">{{ user.risk|smart_price }}</td>
+                        <td data-label="Risk" data-value="{{ user.display_risk|smart_price }}" class="editable" data-field="risk">{{ user.display_risk|smart_price }}</td>
                         <td data-label="Stop-Loss" data-value="{% if user.SL %}{{ user.SL|smart_price }}{% endif %}" class="editable" data-field="SL">{% if user.SL %}${{ user.SL|smart_price }}{% endif %}</td>
                         <td data-label="Take-Profit" data-value="{% if user.TP %}{{ user.TP|smart_price }}{% endif %}" class="editable" data-field="TP">{% if user.TP %}${{ user.TP|smart_price }}{% endif %}</td>
                         <td data-label="RR" data-value="{% if user.RR is not none %}{{ "%.2f"|format(user.RR) }}{% else %}—{% endif %}" class="{% if user.RR is none %}neutral_R{% elif user.RR >= 0 %}positive_R{% else %}negative_R{% endif %}">
