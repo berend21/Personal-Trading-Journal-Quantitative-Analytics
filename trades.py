@@ -1,4 +1,4 @@
-from flask import render_template, request, flash, redirect, url_for, jsonify, send_file
+from flask import render_template, request, flash, redirect, url_for, jsonify
 from extensions import app
 from database import get_db
 from login import login_required
@@ -6,11 +6,10 @@ from datetime import datetime, timedelta
 import os
 import time
 from werkzeug.utils import secure_filename
-import pandas as pd
-import io
 from PIL import Image
 
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'mp4', 'webm', 'ogg'}
+
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
 @app.route('/')
 @login_required
@@ -88,34 +87,87 @@ def index():
             partials_by_parent[pid].append(dict(row))
 
     processed_parents = []
+
     for parent_row in parents:
         parent = dict(parent_row)
         partials = partials_by_parent.get(parent['id'], [])
-        
+
         if partials:
-            parent['calculated_RR'] = calculate_parent_rr_with_partials(parent, partials)
+            parent['calculated_RR'] = calculate_parent_rr_with_partials(
+                parent,
+                partials
+            )
         else:
             parent['calculated_RR'] = parent['RR']
 
-        if parent['status'] == 'CLOSED' and partials:
-            total_closed_risk = sum(p['risk'] or 0 for p in partials if p['status'] == 'CLOSED')
-            parent['risk'] = total_closed_risk or parent['risk']
+        parent['RR'] = parent['calculated_RR']
+
+        if parent['initial_risk'] is not None:
+
+            initial_risk = float(parent['initial_risk'] or 0)
+
+            added_risk = sum(
+                float(p['risk'] or 0)
+                for p in partials
+                if p['risk_action'] == 'OPEN'
+            )
+            closed_risk = sum(
+                float(p['risk'] or 0)
+                for p in partials
+                if p['risk_action'] == 'CLOSE'
+            )
+            # Risk currently still open
+            parent['current_risk'] = round(
+                initial_risk + added_risk - closed_risk,
+                8
+            )
+            # Risk ever committed
+            parent['total_committed_risk'] = round(
+                initial_risk + added_risk,
+                8
+            )
+            # Risk shown in the table
+            if parent['status'] == 'CLOSED':
+                parent['display_risk'] = round(initial_risk, 8)
+            else:
+                parent['display_risk'] = parent['current_risk']
+
+        else:
+            current_risk = float(parent['risk'] or 0)
+            parent['current_risk'] = round(current_risk, 8)
+            parent['total_committed_risk'] = round(current_risk, 8)
+            parent['display_risk'] = round(current_risk, 8)
 
         processed_parents.append(parent)
 
-
-
-    conn = get_db()   # already have conn = get_db() higher up
     year_month = datetime.now().strftime('%Y-%m')
-    monthly_rr_result = conn.execute("""
-        SELECT COALESCE(SUM(RR), 0) FROM trades
-        WHERE parent_id IS NULL AND status = 'CLOSED'
-        AND strftime('%Y-%m', close_time) = ?
-    """, (year_month,)).fetchone()
-    monthly_rr = monthly_rr_result[0] if monthly_rr_result else 0
-    
 
-     
+    monthly_parents = conn.execute("""
+        SELECT * FROM trades
+        WHERE parent_id IS NULL
+        AND status = 'CLOSED'
+        AND strftime('%Y-%m', close_time) = ?
+    """, (year_month,)).fetchall()
+
+    monthly_rr = 0.0
+
+    for parent in monthly_parents:
+        partials = conn.execute("""
+            SELECT * FROM trades
+            WHERE parent_id = ?
+            ORDER BY id
+        """, (parent['id'],)).fetchall()
+
+        if partials:
+            parent_rr = calculate_parent_rr_with_partials(parent, partials)
+        else:
+            parent_rr = parent['RR']
+
+
+        if parent_rr is not None:
+            monthly_rr += parent_rr
+
+    monthly_rr = round(monthly_rr, 2)
 
     return render_template(
         'index.html',
@@ -153,16 +205,18 @@ def add_trade():
     open_price = float(open_price) if open_price else None
     close_price= float(close_price) if close_price else None
     risk = float(risk) if risk else None
+    initial_risk = risk
     SL = float(SL) if SL else None
     TP = float(TP) if TP else None
     
-    RR = ((close_price-open_price)/(open_price-SL)) if (close_price is not None) else None
+    RR = calculate_r_multiple(sort, open_price, close_price, SL)
 
-    sql = '''INSERT INTO trades (symbol, open_time, close_time, type, status, sort, open_price, close_price, risk, SL, TP, RR, reason, feedback)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'''
+
+    sql = '''INSERT INTO trades (symbol, open_time, close_time, type, status, sort, open_price, close_price, risk, SL, TP, RR, reason, feedback, initial_risk)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'''
 
     with get_db() as conn:
-        conn.execute(sql, (symbol, open_time, close_time, type, status, sort, open_price, close_price, risk, SL, TP, RR, reason, feedback))    
+        conn.execute(sql, (symbol, open_time, close_time, type, status, sort, open_price, close_price, risk, SL, TP, RR, reason, feedback, initial_risk))    
         conn.commit()
      
     flash('Trade added!', 'success')
@@ -193,6 +247,7 @@ def edit_trade(user_id):
         reason = request.form.get('reason')
         feedback = request.form.get('feedback')
 
+
         symbol = symbol if symbol else current['symbol']
         open_time = open_time if open_time else current['open_time']
         close_time = close_time if close_time else current['close_time']
@@ -213,62 +268,54 @@ def edit_trade(user_id):
         if open_dt and close_dt and close_dt < open_dt:
             return {'success': False, 'message': 'Close time cannot be before open time.'}
 
+        
         if current['parent_id']:
-            parent = conn.execute('SELECT * FROM trades WHERE id=?', (current['parent_id'],)).fetchone()
-            if parent:
-                old_risk = current['risk'] if current['risk'] is not None else 0
-                new_risk = risk if risk is not None else 0
-                risk_diff = new_risk - old_risk
-                
-                parent_new_risk = (parent['risk'] if parent['risk'] is not None else 0) + risk_diff
-                
-                if parent_new_risk <= 0 and parent['status'] != 'CLOSED':
-                    from datetime import datetime
-                    parent_close_time = datetime.now().strftime('%Y-%m-%d %H:%M')
-                    parent_status = 'CLOSED'
-                else:
-                    parent_close_time = parent['close_time']
-                    parent_status = parent['status']
-                
-                if parent_new_risk <= 0 and parent['status'] != 'CLOSED':
-                    conn.execute('''
-                        UPDATE trades SET risk=?, status=?, close_time=? WHERE id=?
-                    ''', (max(0, parent_new_risk), parent_status, parent_close_time, parent['id']))
-                else:
-                    conn.execute('''
-                        UPDATE trades SET risk=? WHERE id=?
-                    ''', (parent_new_risk, parent['id']))
+            parent = conn.execute(
+                'SELECT * FROM trades WHERE id=?',
+                (current['parent_id'],)
+            ).fetchone()
 
-        if current['parent_id']:
-            parent = conn.execute('SELECT * FROM trades WHERE id=?', (current['parent_id'],)).fetchone()
             if parent and close_price is not None and parent['SL'] is not None:
-                if parent['sort'] == 'LONG':
-                    RR = ((close_price - open_price) / (open_price - parent['SL']))
-                elif parent['sort'] == 'SHORT':
-                    RR = ((open_price - close_price) / (parent['SL'] - open_price))
-                else:
+                RR = calculate_r_multiple(
+                    parent['sort'],
+                    open_price,
+                    close_price,
+                    parent['SL']
+                )
+
+                if RR is None:
                     RR = current['RR']
             else:
                 RR = current['RR']
-        else:
-            RR = ((close_price-open_price)/(open_price-SL)) if (close_price is not None and SL is not None and open_price is not None) else current['RR']
 
-        conn.execute('''UPDATE trades SET symbol=?, open_time=?, close_time=?, type=?, status=?, sort=?, open_price=?, close_price=?, risk=?, SL=?, TP=?, RR=?, reason=?, feedback=? WHERE id=?''', 
-                    (symbol, open_time, close_time, type, status, sort, open_price, close_price, risk, SL, TP, RR, reason, feedback, user_id))
+        else:
+            calculated_rr = calculate_r_multiple(
+                sort,
+                open_price,
+                close_price,
+                SL
+            )
+
+            RR = calculated_rr if calculated_rr is not None else current['RR']
+        if current['parent_id']:
+            risk_action = 'OPEN' if status == 'OPEN' else 'CLOSE'
+        else:
+            risk_action = current['risk_action']
+
+
+        conn.execute('''UPDATE trades SET symbol=?, open_time=?, close_time=?, type=?, status=?, sort=?, open_price=?, close_price=?, risk=?, SL=?, TP=?, RR=?, reason=?, feedback=?, risk_action=? WHERE id=?''', 
+                    (symbol, open_time, close_time, type, status, sort, open_price, close_price, risk, SL, TP, RR, reason, feedback, risk_action, user_id))
         
         if current['parent_id']:
-            parent = conn.execute('SELECT * FROM trades WHERE id=?', (current['parent_id'],)).fetchone()
-            if parent:
-                all_partials = conn.execute('SELECT * FROM trades WHERE parent_id=?', (parent['id'],)).fetchall()
-                parent_rr = calculate_parent_rr_with_partials(parent, all_partials)
-                #print("Parent RR recalculated:", parent_rr)
-                conn.execute(f'UPDATE trades SET RR=? WHERE id=?', (parent_rr, parent['id']))
+            recalculate_parent(conn, current['parent_id'])
+
         
         conn.commit()
          
         return {'success': True}
     
     except Exception as e:
+        conn.rollback()
         return {'success': False, 'message': str(e)}
     
 @app.route('/delete/<int:user_id>', methods=['POST'])
@@ -276,163 +323,44 @@ def edit_trade(user_id):
 def delete_trade(user_id):
 
     with get_db() as conn:
-        trade = conn.execute('SELECT * FROM trades WHERE id=?', (user_id,)).fetchone()
+        trade = conn.execute(
+            'SELECT * FROM trades WHERE id=?',
+            (user_id,)
+        ).fetchone()
+
         if not trade:
             flash('Trade not found.', 'error')
             return redirect(url_for('index'))
 
         parent_id = trade['parent_id']
 
-        conn.execute('DELETE FROM trades WHERE id=?', (user_id,))
+        # DELETING A PARENT delete all children first, then parent.
+        if parent_id is None:
 
-        if parent_id:
-            parent = conn.execute('SELECT * FROM trades WHERE id=?', (parent_id,)).fetchone()
-            if parent:
-                all_partials = conn.execute('SELECT * FROM trades WHERE parent_id=?', (parent_id,)).fetchall()
-                parent_rr = calculate_parent_rr_with_partials(parent, all_partials)
-                conn.execute('UPDATE trades SET RR=? WHERE id=?', (parent_rr, parent_id))
+            conn.execute(
+                'DELETE FROM trades WHERE parent_id=?',
+                (user_id,)
+            )
+
+            conn.execute(
+                'DELETE FROM trades WHERE id=?',
+                (user_id,)
+            )
+        # DELETING A CHILD delete only this child, then recalculate the parent.
+
+        else:
+
+            conn.execute(
+                'DELETE FROM trades WHERE id=?',
+                (user_id,)
+            )
+            recalculate_parent(conn, parent_id)
 
         conn.commit()
+
     flash('Trade deleted successfully!', 'success')
     return redirect(url_for('index'))
 
-@app.route('/import', methods=['POST'])
-@login_required
-def import_trades():
-    if 'import_file' not in request.files:
-        flash('No file part', 'error')
-        return redirect(url_for('index'))
-    file = request.files['import_file']
-    if file.filename == '':
-        flash('No selected file', 'error')
-        return redirect(url_for('index'))
-    if not file.filename.endswith('.xlsx'):
-        flash('Only .xlsx files are supported', 'error')
-        return redirect(url_for('index'))
-    try:
-        df = pd.read_excel(file)
-        required_columns = ['symbol', 'open_time', 'status', 'sort', 'open_price', 'risk']
-        allowed_columns = [
-            'id', 'symbol', 'open_time', 'close_time', 'type', 'status', 'sort', 'open_price', 'close_price', 'risk',
-            'SL', 'TP', 'RR', 'reason', 'feedback', 'reason_image', 'feedback_image', 'parent_id'
-        ]
-        missing = [col for col in required_columns if col not in df.columns]
-        if missing:
-            flash("Missing required columns: {', '.join(missing)}", 'error')
-            return redirect(url_for('index'))
-        
-        df = df[[col for col in allowed_columns if col in df.columns]]
-
-        for col in allowed_columns:
-            if col not in df.columns:
-                df[col] = None
-
-        def excel_date_to_str(val):
-            if pd.isnull(val):
-                return None
-            if isinstance(val, float) or isinstance(val, int):
-                try:
-                    return pd.to_datetime('1899-12-30') + pd.to_timedelta(val, 'D')
-                except Exception:
-                    return None
-            try:
-                dt = pd.to_datetime(val, errors='coerce')
-                if pd.isnull(dt):
-                    return None
-                return dt.strftime('%Y-%m-%d %H:%M')
-            except Exception:
-                return None
-
-        for col in ['open_time', 'close_time']:
-            if col in df.columns:
-                df[col] = df[col].apply(excel_date_to_str)
-        
-        df = df[
-            df['symbol'].notnull() & (df['symbol'].astype(str).str.strip() != '') &
-            df['sort'].notnull() & (df['sort'].astype(str).str.strip() != '')
-        ]
-
-        numeric_cols = ['risk', 'SL', 'TP', 'pnl', 'RR']
-        for col in numeric_cols:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-                df[col] = df[col].apply(lambda x: int(x) if pd.notnull(x) and float(x).is_integer() else (float(x) if pd.notnull(x) else None))
-
-        if 'parent_id' in df.columns:
-            df['parent_id'] = pd.to_numeric(df['parent_id'], errors='coerce')
-        else:
-            df['parent_id'] = None
-
-        df['excel_id'] = df['id'] 
-
-        parents_df = df[df['parent_id'].isnull()].copy()
-        partials_df = df[df['parent_id'].notnull()].copy()
-
-        parents_df = parents_df.sort_values(by='excel_id', ascending=True)
-        partials_df = partials_df.sort_values(by='excel_id', ascending=True)
-
-        conn = get_db()
-        conn.execute('PRAGMA foreign_keys = ON')
-        parent_id_map = {}
-        parent_count = 0
-        partial_count = 0
-        
-
-        for _, row in parents_df.iterrows():
-            excel_id = row['excel_id']
-            if pd.isnull(excel_id):
-                continue
-            excel_id = int(excel_id)
-            cursor = conn.execute('''
-                INSERT INTO trades (symbol, open_time, close_time, type, status, sort, open_price, close_price, risk, SL, TP, RR, reason, feedback, reason_image, feedback_image, parent_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                row['symbol'], row['open_time'], row['close_time'], row['type'], row['status'], row['sort'],
-                row['open_price'], row['close_price'], row['risk'], row['SL'], row['TP'], row['RR'], row['reason'], row['feedback'], row['reason_image'], row['feedback_image'], None
-            ))
-            db_id = cursor.lastrowid
-            parent_id_map[excel_id] = db_id
-            parent_count += 1
-
-        for _, row in partials_df.iterrows():
-            old_parent_id = row['parent_id']
-            if pd.isnull(old_parent_id):
-                continue
-            old_parent_id = int(old_parent_id)
-            db_parent_id = parent_id_map.get(old_parent_id)
-            if db_parent_id is None:
-                continue 
-            conn.execute('''
-                INSERT INTO trades (symbol, open_time, close_time, type, status, sort, open_price, close_price, risk, SL, TP, RR, reason, feedback, reason_image, feedback_image, parent_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                row['symbol'], row['open_time'], row['close_time'], row['type'], row['status'], row['sort'],
-                row['open_price'], row['close_price'], row['risk'], row['SL'], row['TP'],  row['RR'], row['reason'], row['feedback'], row['reason_image'], row['feedback_image'], db_parent_id
-            ))
-            partial_count += 1
-
-        conn.commit()
-         
-        
-        total_imported = parent_count + partial_count
-        flash(f'Imported {total_imported} trades successfully! ({parent_count} parent trades, {partial_count} partial trades)', 'success')
-    except Exception as e:
-        flash(f'Import failed: {e}', 'error')
-    return redirect(url_for('index'))
-
-@app.route('/export')
-@login_required
-def export_trades():
-    conn = get_db()
-    df = pd.read_sql_query('SELECT * FROM trades ORDER BY id DESC', conn)
-     
-
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Trades')
-    output.seek(0)
-
-    return send_file(output, download_name="trades_export.xlsx", as_attachment=True, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 @app.route('/partial_close_inline/<int:parent_id>', methods=['POST'])
 @login_required
@@ -470,54 +398,70 @@ def partial_close_inline(parent_id):
                 return redirect(url_for('index'))
 
             RR = 0.0
-
-            new_parent_risk = (parent_trade['risk'] if parent_trade['risk'] is not None else 0.0) + risk
             new_parent_status = parent_trade['status']
             parent_close_time = parent_trade['close_time']
 
-        else:  
+        else:
             close_price = request.form.get('close_price')
             close_time = request.form.get('close_time')
             close_price = float(close_price) if close_price else None
             open_price = parent_trade['open_price']
-            open_time = None  
+            open_time = None
 
             if close_price is None:
                 flash('Close price is required for CLOSED partial', 'error')
                 return redirect(url_for('index'))
 
-            if parent_trade['sort'] == 'LONG':
-                if parent_trade['SL'] is not None:
-                    denom = open_price - parent_trade['SL']
-                    RR = ((close_price - open_price) / denom) if denom != 0 else 0.0
-                else:
-                    RR = 0.0
-            elif parent_trade['sort'] == 'SHORT':
-                if parent_trade['SL'] is not None:
-                    denom = parent_trade['SL'] - open_price
-                    RR = ((open_price - close_price) / denom) if denom != 0 else 0.0
-                else:
-                    RR = 0.0
-            else:
-                RR = 0.0
+            RR = calculate_r_multiple(
+                parent_trade['sort'],
+                open_price,
+                close_price,
+                parent_trade['SL']
+            )
 
-            old_parent_risk = parent_trade['risk'] if parent_trade['risk'] is not None else 0.0
+            if RR is None:
+                flash(
+                    'Could not calculate RR. Check direction, entry price, and stop loss.',
+                    'error'
+                )
+                return redirect(url_for('index'))
+
+            old_parent_risk = (
+                parent_trade['risk']
+                if parent_trade['risk'] is not None
+                else 0.0
+            )
+
+            if risk > old_parent_risk:
+                flash(
+                    f'Cannot close {risk}R. Parent only has '
+                    f'{old_parent_risk}R remaining.',
+                    'error'
+                )
+                return redirect(url_for('index'))
+
             new_parent_risk = old_parent_risk - risk
 
             if new_parent_risk <= 0:
+                new_parent_risk = 0.0
                 new_parent_status = 'CLOSED'
-                parent_close_time = parent_trade['close_time'] or datetime.now().strftime('%Y-%m-%d %H:%M')
+                parent_close_time = (
+                    parent_trade['close_time']
+                    or datetime.now().strftime('%Y-%m-%d %H:%M')
+                )
             else:
-                new_parent_status = parent_trade['status']
-                parent_close_time = parent_trade['close_time']
+                new_parent_status = 'OPEN'
+                parent_close_time = None
 
+
+        risk_action = 'OPEN' if status == 'OPEN' else 'CLOSE'
         conn.execute('''
             INSERT INTO trades (
                 symbol, open_time, close_time, type, status, sort,
                 open_price, close_price, risk, SL, TP, RR,
-                reason, feedback, parent_id
+                reason, feedback, parent_id, risk_action
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             parent_trade['symbol'],
             open_time,
@@ -533,43 +477,15 @@ def partial_close_inline(parent_id):
             RR,
             reason,
             feedback,
-            parent_id
+            parent_id,
+            risk_action
         ))
-
-        if status == 'CLOSED' and new_parent_risk <= 0:
-            conn.execute('''
-                UPDATE trades
-                SET risk = ?, status = ?, close_time = ?
-                WHERE id = ?
-            ''', (
-                max(0.0, new_parent_risk),
-                new_parent_status,
-                parent_close_time,
-                parent_id
-            ))
-        else:
-            conn.execute('''
-                UPDATE trades
-                SET risk = ?, status = ?
-                WHERE id = ?
-            ''', (
-                new_parent_risk,
-                new_parent_status,
-                parent_id
-            ))
-
-        updated_parent = conn.execute('SELECT * FROM trades WHERE id=?', (parent_id,)).fetchone()
-        all_partials = conn.execute('SELECT * FROM trades WHERE parent_id=?', (parent_id,)).fetchall()
-
-        parent_rr = calculate_parent_rr_with_partials(updated_parent, all_partials)
-
-        conn.execute('UPDATE trades SET RR=? WHERE id=?', (parent_rr, parent_id))
+        recalculate_parent(conn, parent_id)
 
         conn.commit()
 
     flash('Partial trade added!', 'success')
     return redirect(url_for('index'))
-
 
 
 @app.route('/partial_close_inline_spot/<int:parent_id>', methods=['POST'])
@@ -661,33 +577,9 @@ def partial_close_inline_spot(parent_id):
             parent_id
         ))
 
-        if status == 'CLOSED' and new_parent_risk <= 0:
-            conn.execute('''
-                UPDATE spot_trades
-                SET risk = ?, status = ?, close_time = ?
-                WHERE id = ?
-            ''', (
-                max(0.0, new_parent_risk),
-                new_parent_status,
-                parent_close_time,
-                parent_id
-            ))
-        else:
-            conn.execute('''
-                UPDATE spot_trades
-                SET risk = ?, status = ?
-                WHERE id = ?
-            ''', (
-                new_parent_risk,
-                new_parent_status,
-                parent_id
-            ))
-
-        # Recalculate parent % gain (weighted average)
         updated_parent = conn.execute('SELECT * FROM spot_trades WHERE id=?', (parent_id,)).fetchone()
         all_partials = conn.execute('SELECT * FROM spot_trades WHERE parent_id=?', (parent_id,)).fetchall()
 
-        # Calculate weighted average % gain
         total_realized_gain_pct = 0.0
         total_risk_closed = 0.0
         
@@ -816,40 +708,64 @@ def user_detail(user_id):
 
      
     return render_template('user_detail.html', user=user)
-
-def calculate_parent_rr_with_partials(parent, partials):
-    total_realized_r = 0.0
-    total_risk_closed = 0.0
-
-    def r_multiple(sort, open_price, close_price, SL):
-        if None in (open_price, close_price, SL):
-            return 0.0
-        try:
-            if sort == 'SHORT':
-                return (open_price - close_price) / (SL - open_price)
-            elif sort == 'LONG':
-                return (close_price - open_price) / (open_price - SL)
-            else:
-                return 0.0
-        except ZeroDivisionError:
-            return 0.0
-
-    for partial in partials:
-        if partial['status'] == 'CLOSED' and partial['close_price'] is not None and partial['risk'] is not None:
-            r_mult = r_multiple(parent['sort'], partial['open_price'] or parent['open_price'], partial['close_price'], parent['SL'])
-            total_realized_r += r_mult * partial['risk']
-            total_risk_closed += partial['risk']
-
-    parent_risk = parent['risk'] if parent['risk'] is not None else 0.0
-    if parent['status'] == 'CLOSED' and parent['close_price'] is not None and parent_risk > 0:
-        r_mult = r_multiple(parent['sort'], parent['open_price'], parent['close_price'], parent['SL'])
-        total_realized_r += r_mult * parent_risk
-        total_risk_closed += parent_risk
-
-    if total_risk_closed == 0:
+def calculate_r_multiple(sort, open_price, close_price, stop_loss):
+    if None in (open_price, close_price, stop_loss):
         return None
 
-    return round(total_realized_r / total_risk_closed, 2)
+    try:
+        open_price = float(open_price)
+        close_price = float(close_price)
+        stop_loss = float(stop_loss)
+    except (TypeError, ValueError):
+        return None
+
+    sort = (sort or "").upper()
+
+    if sort == "SHORT":
+        risk_per_unit = stop_loss - open_price
+        profit_per_unit = open_price - close_price
+
+    elif sort == "LONG":
+        risk_per_unit = open_price - stop_loss
+        profit_per_unit = close_price - open_price
+
+    else:
+        return None
+
+    if risk_per_unit <= 0:
+        return None
+
+    return profit_per_unit / risk_per_unit
+
+def calculate_parent_rr_with_partials(parent, partials):
+    total_weighted_r = 0.0
+    total_closed_risk = 0.0
+
+    for partial in partials:
+        if partial['risk_action'] != 'CLOSE':
+            continue
+
+        if partial['risk'] is None:
+            continue
+
+        if partial['RR'] is None:
+            continue
+
+        risk = float(partial['risk'])
+        rr = float(partial['RR'])
+
+        if risk <= 0:
+            continue
+
+        total_weighted_r += rr * risk
+        total_closed_risk += risk
+
+    if total_closed_risk <= 0:
+        return 0.0
+
+    return round(total_weighted_r / total_closed_risk, 8)
+
+
 
 def parse_time(s):
     if not s:
@@ -864,3 +780,161 @@ def parse_time(s):
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def recalculate_parent(conn, parent_id):
+    parent = conn.execute(
+        'SELECT * FROM trades WHERE id=?',
+        (parent_id,)
+    ).fetchone()
+
+    if not parent:
+        return None
+
+    children = conn.execute(
+        '''
+        SELECT *
+        FROM trades
+        WHERE parent_id=?
+        ORDER BY id
+        ''',
+        (parent_id,)
+    ).fetchall()
+
+
+    if not children:
+
+        if parent['initial_risk'] is not None:
+
+            initial_risk = float(parent['initial_risk'] or 0)
+
+            conn.execute(
+                '''
+                UPDATE trades
+                SET risk=?,
+                    RR=?,
+                    status=?,
+                    close_time=?
+                WHERE id=?
+                ''',
+                (
+                    round(initial_risk, 8),
+                    0.0,
+                    'OPEN',
+                    None,
+                    parent_id
+                )
+            )
+
+            return {
+                'current_risk': round(initial_risk, 8),
+                'total_committed_risk': round(initial_risk, 8),
+                'closed_risk': 0.0,
+                'added_risk': 0.0,
+                'realized_r': 0.0,
+                'status': 'OPEN',
+                'close_time': None
+            }
+
+        # OLD TRADE
+        # No initial_risk means this is an old trade.
+        return {
+            'current_risk': float(parent['risk'] or 0),
+            'total_committed_risk': float(parent['risk'] or 0),
+            'closed_risk': 0.0,
+            'added_risk': 0.0,
+            'realized_r': float(parent['RR'] or 0),
+            'status': parent['status'],
+            'close_time': parent['close_time']
+        }
+
+    # OLD TRADES
+    # Keep the existing old-trade accounting untouched for now. There is no initial_risk
+    if parent['initial_risk'] is None:
+        return {
+            'current_risk': float(parent['risk'] or 0),
+            'total_committed_risk': float(parent['risk'] or 0),
+            'closed_risk': 0.0,
+            'added_risk': 0.0,
+            'realized_r': float(parent['RR'] or 0),
+            'status': parent['status'],
+            'close_time': parent['close_time']
+        }
+    # NEW TRADES
+
+    initial_risk = float(parent['initial_risk'] or 0)
+
+    added_risk = 0.0
+    closed_risk = 0.0
+    realized_r = 0.0
+
+    last_close_time = None
+
+    for child in children:
+
+        risk = float(child['risk'] or 0)
+
+        if child['risk_action'] == 'OPEN':
+            added_risk += risk
+
+        elif child['risk_action'] == 'CLOSE':
+            closed_risk += risk
+
+            if child['RR'] is not None:
+                realized_r += float(child['RR']) * risk
+
+            if child['close_time']:
+                if (
+                    last_close_time is None
+                    or child['close_time'] > last_close_time
+                ):
+                    last_close_time = child['close_time']
+
+    total_committed_risk = initial_risk + added_risk
+
+    current_risk = total_committed_risk - closed_risk
+
+    if current_risk < -0.00000001:
+        raise ValueError(
+            f'Parent {parent_id}: closed risk '
+            f'({closed_risk}) exceeds committed risk '
+            f'({total_committed_risk}).'
+        )
+
+    current_risk = max(0.0, current_risk)
+
+    if current_risk <= 0:
+        status = 'CLOSED'
+        close_time = last_close_time or parent['close_time']
+    else:
+        status = 'OPEN'
+        close_time = None
+
+    realized_r = round(realized_r, 8)
+
+    conn.execute(
+        '''
+        UPDATE trades
+        SET risk=?,
+            RR=?,
+            status=?,
+            close_time=?
+        WHERE id=?
+        ''',
+        (
+            round(current_risk, 8),
+            realized_r,
+            status,
+            close_time,
+            parent_id
+        )
+    )
+
+    return {
+        'current_risk': round(current_risk, 8),
+        'total_committed_risk': round(total_committed_risk, 8),
+        'closed_risk': round(closed_risk, 8),
+        'added_risk': round(added_risk, 8),
+        'realized_r': realized_r,
+        'status': status,
+        'close_time': close_time
+    }
