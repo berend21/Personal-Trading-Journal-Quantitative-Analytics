@@ -4,13 +4,15 @@ from database import get_db
 from login import login_required
 from werkzeug.utils import secure_filename
 import os
-import time
-from datetime import datetime
+from uuid import uuid4
 
 app.config['UPLOAD_FOLDER']= 'static/uploads'
 KNOWLEDGE_UPLOAD_FOLDER = 'static/uploads/knowledge'
 os.makedirs(KNOWLEDGE_UPLOAD_FOLDER, exist_ok=True)
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'mp4', 'webm', 'ogg'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'mp4', 'webm', 'ogg', 'pdf', 'gif', 'avi', 'mov'}
+ALLOWED_TYPES = {'document', 'learning'}
+MAX_KNOWLEDGE_FILE_SIZE = 50 * 1024 * 1024
+
 
 @app.route('/knowledge', methods=['GET', 'POST'])
 @app.route('/knowledge/<int:article_id>', methods=['GET', 'POST'])
@@ -22,9 +24,18 @@ def knowledge(article_id=None):
         action = request.form.get('action') or request.args.get('action')
         
         if action == 'get_article':
-            article = conn.execute('SELECT * FROM knowledge_articles WHERE id = ?', 
-                                  (request.args.get('id'),)).fetchone()
+            article_id_param = request.args.get('id')
+
+            if not article_id_param or not article_id_param.isdigit():
+                return jsonify({'error': 'Invalid article ID'}), 400
+
+            article = conn.execute(
+                'SELECT * FROM knowledge_articles WHERE id = ?',
+                (int(article_id_param),)
+            ).fetchone()
+
             if article:
+
                  
                 return jsonify({
                     'id': article['id'],
@@ -43,50 +54,163 @@ def knowledge(article_id=None):
         elif action == 'delete':
             try:
                 del_article_id = request.form.get('id')
-                article = conn.execute('SELECT featured_image FROM knowledge_articles WHERE id = ?', 
-                                      (del_article_id,)).fetchone()
-                
-                if article and article['featured_image']:
-                    try:
-                        os.remove(os.path.join(KNOWLEDGE_UPLOAD_FOLDER, article['featured_image']))
-                    except OSError:
-                        pass
-                
-                conn.execute('DELETE FROM knowledge_articles WHERE id = ?', (del_article_id,))
+
+                if not del_article_id or not del_article_id.isdigit():
+                    return jsonify({
+                        'success': False,
+                        'error': 'Invalid article ID'
+                    }), 400
+
+                del_article_id = int(del_article_id)
+
+                article = conn.execute(
+                    'SELECT featured_image FROM knowledge_articles WHERE id = ?',
+                    (del_article_id,)
+                ).fetchone()
+
+                if not article:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Article not found'
+                    }), 404
+
+                conn.execute(
+                    'DELETE FROM knowledge_articles WHERE id = ?',
+                    (del_article_id,)
+                )
                 conn.commit()
-                 
+
+                if article['featured_image']:
+                    delete_knowledge_file(article['featured_image'])
+
                 return jsonify({'success': True})
+
             except Exception as e:
-                 
-                return jsonify({'success': False, 'error': str(e)}), 500
+                conn.rollback()
+
+                return jsonify({
+                    'success': False,
+                    'error': str(e)
+                }), 500
+
         
         elif action == 'edit':
             try:
                 edit_article_id = request.form.get('id')
+
+                if not edit_article_id or not edit_article_id.isdigit():
+                    return jsonify({
+                        'success': False,
+                        'error': 'Invalid article ID'
+                    }), 400
+
+                edit_article_id = int(edit_article_id)
+
+                article = conn.execute(
+                    'SELECT * FROM knowledge_articles WHERE id = ?',
+                    (edit_article_id,)
+                ).fetchone()
+
+                if not article:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Article not found'
+                    }), 404
+
                 title = request.form.get('title', '').strip()
                 content = request.form.get('content', '')
-                category = request.form.get('category', '')
-                tags = request.form.get('tags', '')
-                entry_type = request.form.get('type', 'document')
-                
+                category = request.form.get('category', '').strip()
+                tags = request.form.get('tags', '').strip()
+                entry_type = request.form.get('type', 'document').strip().lower()
+
                 if not title:
-                    return jsonify({'success': False, 'error': 'Title is required'}), 400
-                
-                conn.execute('''
-                    UPDATE knowledge_articles 
-                    SET title=?, content=?, category=?, tags=?, type=?, updated_at=CURRENT_TIMESTAMP
-                    WHERE id=?
-                ''', (title, content, category, tags, entry_type, edit_article_id))
+                    return jsonify({
+                        'success': False,
+                        'error': 'Title is required'
+                    }), 400
+
+                if entry_type not in ALLOWED_TYPES:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Invalid entry type'
+                    }), 400
+
+                new_filename = None
+                file = request.files.get('file')
+
+                if file and file.filename:
+                    try:
+                        new_filename = save_knowledge_file(file)
+                    except ValueError as e:
+                        return jsonify({
+                            'success': False,
+                            'error': str(e)
+                        }), 400
+
+                if new_filename:
+                    conn.execute('''
+                        UPDATE knowledge_articles
+                        SET title=?,
+                            content=?,
+                            category=?,
+                            tags=?,
+                            type=?,
+                            featured_image=?,
+                            updated_at=CURRENT_TIMESTAMP
+                        WHERE id=?
+                    ''', (
+                        title,
+                        content,
+                        category,
+                        tags,
+                        entry_type,
+                        new_filename,
+                        edit_article_id
+                    ))
+                else:
+                    conn.execute('''
+                        UPDATE knowledge_articles
+                        SET title=?,
+                            content=?,
+                            category=?,
+                            tags=?,
+                            type=?,
+                            updated_at=CURRENT_TIMESTAMP
+                        WHERE id=?
+                    ''', (
+                        title,
+                        content,
+                        category,
+                        tags,
+                        entry_type,
+                        edit_article_id
+                    ))
+
                 conn.commit()
-                 
+
+                if new_filename and article['featured_image']:
+                    delete_knowledge_file(article['featured_image'])
+
                 return jsonify({'success': True})
+
             except Exception as e:
-                 
-                return jsonify({'success': False, 'error': str(e)}), 500
+                conn.rollback()
+
+                if new_filename:
+                    delete_knowledge_file(new_filename)
+
+                return jsonify({
+                    'success': False,
+                    'error': str(e)
+                }), 500
+
 
     if request.method == 'POST' and not request.headers.get('X-Requested-With'):
         action = request.form.get('action')
-        entry_type = request.form.get('type', 'document')  
+        entry_type = request.form.get('type', 'document').strip().lower()
+        if entry_type not in ALLOWED_TYPES:
+            flash('Invalid entry type', 'error')
+            return redirect(url_for('knowledge'))
         
         if action in ['upload', 'edit']:
             title = request.form.get('title', '').strip()
@@ -96,66 +220,121 @@ def knowledge(article_id=None):
             
             if not title:
                 flash('Title is required', 'error')
-                 
                 return redirect(url_for('knowledge'))
-            
+
+            if entry_type == 'learning' and not content.strip():
+                flash('Content is required for learning entries', 'error')
+                return redirect(url_for('knowledge'))
+
+            if entry_type == 'document' and action == 'upload' and not request.files.get('file'):
+                flash('A file is required for document entries', 'error')
+                return redirect(url_for('knowledge'))
+
+
             file = request.files.get('file')
             filename = None
+
+
+
             if file and file.filename:
-                file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
-                allowed_extensions = {'pdf', 'mp4', 'webm', 'ogg', 'avi', 'mov', 'png', 'jpg', 'jpeg', 'gif'}
-                if file_ext not in allowed_extensions:
-                    flash('Invalid file type', 'error')
-                     
-                    return redirect(url_for('knowledge'))
-                
-                filename = secure_filename(file.filename)
-                timestamp = int(time.time())
-                filename = f"{timestamp}_{filename}"
-                filepath = os.path.join(KNOWLEDGE_UPLOAD_FOLDER, filename)
-                os.makedirs(KNOWLEDGE_UPLOAD_FOLDER, exist_ok=True)
-                
                 try:
-                    with open(filepath, 'wb') as f:
-                        while True:
-                            chunk = file.stream.read(1024 * 1024)  
-                            if not chunk:
-                                break
-                            f.write(chunk)
+                    filename = save_knowledge_file(file)
+                except ValueError as e:
+                    flash(str(e), 'error')
+                    return redirect(url_for('knowledge'))
                 except Exception as e:
                     flash(f'Upload failed: {str(e)}', 'error')
-                     
                     return redirect(url_for('knowledge'))
+
             
             if action == 'upload':
-                created_at = datetime.utcnow().isoformat()
-                conn.execute('''
-                    INSERT INTO knowledge_articles (title, content, category, tags, featured_image, created_at, type)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (title, content, category, tags, filename, created_at, entry_type))
-                conn.commit()
-                flash('Entry added successfully!', 'success')
+                try:
+                    conn.execute('''
+                        INSERT INTO knowledge_articles
+                        (title, content, category, tags, featured_image, type)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (title, content, category, tags, filename, entry_type))
+                    conn.commit()
+
+                    flash('Entry added successfully!', 'success')
+
+                except Exception as e:
+                    conn.rollback()
+
+                    if filename:
+                        delete_knowledge_file(filename)
+
+                    flash(f'Upload failed: {str(e)}', 'error')
+
             
             elif action == 'edit' and article_id:
-                sql = '''
-                    UPDATE knowledge_articles 
-                    SET title=?, content=?, category=?, tags=?, type=?, updated_at=CURRENT_TIMESTAMP
-                '''
-                params = [title, content, category, tags, entry_type]
-                if filename:  
-                    old_article = conn.execute('SELECT featured_image FROM knowledge_articles WHERE id=?', (article_id,)).fetchone()
-                    if old_article and old_article['featured_image']:
-                        try:
-                            os.remove(os.path.join(KNOWLEDGE_UPLOAD_FOLDER, old_article['featured_image']))
-                        except OSError:
-                            pass
-                    sql += ', featured_image=?'
-                    params.append(filename)
-                sql += ' WHERE id=?'
-                params.append(article_id)
-                conn.execute(sql, params)
-                conn.commit()
-                flash('Entry updated successfully!', 'success')
+                old_article = conn.execute(
+                    'SELECT * FROM knowledge_articles WHERE id=?',
+                    (article_id,)
+                ).fetchone()
+
+                if not old_article:
+                    if filename:
+                        delete_knowledge_file(filename)
+
+                    flash('Article not found', 'error')
+                    return redirect(url_for('knowledge'))
+
+                try:
+                    if filename:
+                        conn.execute('''
+                            UPDATE knowledge_articles
+                            SET title=?,
+                                content=?,
+                                category=?,
+                                tags=?,
+                                type=?,
+                                featured_image=?,
+                                updated_at=CURRENT_TIMESTAMP
+                            WHERE id=?
+                        ''', (
+                            title,
+                            content,
+                            category,
+                            tags,
+                            entry_type,
+                            filename,
+                            article_id
+                        ))
+                    else:
+                        conn.execute('''
+                            UPDATE knowledge_articles
+                            SET title=?,
+                                content=?,
+                                category=?,
+                                tags=?,
+                                type=?,
+                                updated_at=CURRENT_TIMESTAMP
+                            WHERE id=?
+                        ''', (
+                            title,
+                            content,
+                            category,
+                            tags,
+                            entry_type,
+                            article_id
+                        ))
+
+                    conn.commit()
+
+                    if filename and old_article['featured_image']:
+                        delete_knowledge_file(old_article['featured_image'])
+
+                    flash('Entry updated successfully!', 'success')
+
+                except Exception as e:
+                    conn.rollback()
+
+                    if filename:
+                        delete_knowledge_file(filename)
+
+                    flash(f'Update failed: {str(e)}', 'error')
+
             
              
             return redirect(url_for('knowledge'))
@@ -196,6 +375,7 @@ def knowledge(article_id=None):
                                        (article_id,)).fetchone()
 
     articles_list = []
+
     for article in articles:
         article_dict = {
             'id': article['id'],
@@ -205,9 +385,12 @@ def knowledge(article_id=None):
             'tags': article['tags'],
             'featured_image': article['featured_image'],
             'created_at': article['created_at'],
-            'type': article['type'] or 'document'  
+            'updated_at': article['updated_at'],
+            'type': article['type'] or 'document'
         }
+
         articles_list.append(article_dict)
+
 
   
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -221,4 +404,69 @@ def knowledge(article_id=None):
                            selected_article=selected_article)
 
 def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    if not filename or '.' not in filename:
+        return False
+
+
+
+    extension = filename.rsplit('.', 1)[1].lower()
+    return extension in ALLOWED_EXTENSIONS
+
+def save_knowledge_file(file):
+    if not file or not file.filename:
+        return None
+
+    if not allowed_file(file.filename):
+        raise ValueError('Invalid file type')
+
+    original_filename = secure_filename(file.filename)
+
+    if not original_filename:
+        raise ValueError('Invalid filename')
+
+    extension = original_filename.rsplit('.', 1)[1].lower()
+
+    filename = f'{uuid4().hex}.{extension}'
+    filepath = os.path.join(KNOWLEDGE_UPLOAD_FOLDER, filename)
+
+    try:
+        file.save(filepath)
+
+        if os.path.getsize(filepath) > MAX_KNOWLEDGE_FILE_SIZE:
+            os.remove(filepath)
+            raise ValueError('File is too large. Maximum size is 50MB')
+
+    except ValueError:
+        if os.path.exists(filepath):
+            try:
+                os.remove(filepath)
+            except OSError:
+                pass
+        raise
+
+    except Exception:
+        if os.path.exists(filepath):
+            try:
+                os.remove(filepath)
+            except OSError:
+                pass
+        raise
+
+    return filename
+
+
+
+def delete_knowledge_file(filename):
+    """Delete a Knowledge Base attachment if it exists."""
+    if not filename:
+        return
+
+    filename = os.path.basename(filename)
+
+    filepath = os.path.join(KNOWLEDGE_UPLOAD_FOLDER, filename)
+
+    try:
+        if os.path.isfile(filepath):
+            os.remove(filepath)
+    except OSError:
+        pass
