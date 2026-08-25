@@ -91,9 +91,13 @@
                         </div>
                     </div>
 
-                    <a href="{{ url_for('logout') }}" class="logout-btn" title="Sign Out">
-                        <i class="fas fa-sign-out-alt"></i>
-                    </a>
+                    <form method="POST" action="{{ url_for('logout') }}" class="logout-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="logout-btn" title="Sign Out" aria-label="Sign Out">
+                            <i class="fas fa-sign-out-alt" aria-hidden="true"></i>
+                        </button>
+                    </form>
+
                 </div>
             {% endif %}
 
