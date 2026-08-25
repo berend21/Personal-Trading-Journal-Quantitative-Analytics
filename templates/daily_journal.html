@@ -1,0 +1,401 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='daily_journal.css') }}">
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+{% endblock %}
+
+{% block title %}Trading Journal - {{ date.strftime('%B %d, %Y') }}{% endblock %}
+
+{% block content %}
+
+<div class="journal-detail-page">
+
+
+    <div class="detail-header">
+
+        <a href="{{ url_for('journal') }}" class="back-link">
+            <i class="fas fa-arrow-left"></i>
+            Back to Calendar
+        </a>
+
+        <h1>
+            {{ date.strftime('%A, %B %d, %Y') }}
+        </h1>
+
+        <div class="detail-date-badge">
+            <i class="far fa-calendar"></i>
+            {{ date.strftime('%B %Y') }}
+        </div>
+
+    </div>
+
+
+
+
+    <section class="trades-panel">
+
+        <div class="panel-header">
+
+            <div>
+                <h2>
+                    <i class="fas fa-chart-line"></i>
+                    Trades
+                </h2>
+
+                <span class="panel-subtitle">
+                    {{ trades|length }}
+                    {% if trades|length == 1 %}
+                        trade
+                    {% else %}
+                        trades
+                    {% endif %}
+                    on this day
+                </span>
+            </div>
+
+        </div>
+
+
+        {% if trades %}
+
+            <div class="trade-table-wrapper">
+
+                <table class="trade-table">
+
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th>R</th>
+                            <th>Time</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        {% for trade in trades %}
+
+                        <tr onclick="window.location.href='{{ url_for('user_detail', user_id=trade.id) }}'">
+
+                            <td>
+                                <a href="{{ url_for('user_detail', user_id=trade.id) }}"
+                                   class="symbol-link">
+                                    {{ trade.symbol }}
+                                </a>
+                            </td>
+
+                            <td>
+                                <span class="trade-type">
+                                    {{ trade.sort }}
+                                </span>
+                            </td>
+
+                            <td>
+
+                                {% if trade.status %}
+                                    <span class="status-badge
+                                        {% if trade.status|lower == 'closed' %}
+                                            status-closed
+                                        {% elif trade.status|lower == 'open' %}
+                                            status-open
+                                        {% elif trade.status|lower == 'cancelled' %}
+                                            status-cancelled
+                                        {% else %}
+                                            status-default
+                                        {% endif %}
+                                    ">
+                                        {{ trade.status }}
+                                    </span>
+                                {% else %}
+                                    <span class="muted-value">—</span>
+                                {% endif %}
+
+                            </td>
+
+                            <td>
+
+                                {% if trade.RR is not none %}
+
+                                    {% if trade.RR > 0 %}
+                                        <span class="rr-value rr-positive">
+                                            +{{ trade.RR|smart_price }}R
+                                        </span>
+
+                                    {% elif trade.RR < 0 %}
+                                        <span class="rr-value rr-negative">
+                                            {{ trade.RR|smart_price }}R
+                                        </span>
+
+                                    {% else %}
+                                        <span class="rr-value rr-flat">
+                                            0.00R
+                                        </span>
+                                    {% endif %}
+
+                                {% else %}
+                                    <span class="muted-value">—</span>
+                                {% endif %}
+
+                            </td>
+
+                            <td>
+                                <span class="trade-time">
+                                    {{ trade.open_time }}
+                                </span>
+                            </td>
+
+                            <td class="trade-arrow">
+                                <i class="fas fa-chevron-right"></i>
+                            </td>
+
+                        </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        {% else %}
+
+            <div class="no-trades">
+
+                <div class="no-trades-icon">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+
+                <div>
+                    <strong>No trades on this day</strong>
+                    <span>There are no recorded trades for {{ date.strftime('%B %d, %Y') }}.</span>
+                </div>
+
+            </div>
+
+        {% endif %}
+
+    </section>
+
+
+    <div class="journal-panels">
+
+
+        <section class="journal-panel daily-panel">
+
+            <div class="journal-panel-header">
+
+                <div class="journal-icon daily-icon">
+                    <i class="fas fa-sun"></i>
+                </div>
+
+                <div>
+                    <h2>Daily Journal</h2>
+                    <span>
+                        {{ date.strftime('%A, %B %d') }}
+                    </span>
+                </div>
+
+            </div>
+
+
+            <form method="POST" class="journal-form">
+
+                <input type="hidden"
+                       name="csrf_token"
+                       value="{{ csrf_token() }}">
+
+                <input type="hidden"
+                       name="date"
+                       value="{{ date_str }}">
+
+                <input type="hidden"
+                       name="entry_type"
+                       value="daily">
+
+
+                <textarea
+                    name="content"
+                    class="journal-textarea"
+                    placeholder="How did today's trading go?
+
+What went well?
+What could have been better?
+What did you learn?
+How did you feel during your trades?"
+                >{{ daily_entry.content if daily_entry else '' }}</textarea>
+
+
+                <div class="journal-form-footer">
+
+                    {% if daily_entry %}
+                        <span class="saved-indicator">
+                            <i class="fas fa-check"></i>
+                            Saved
+                        </span>
+                    {% else %}
+                        <span class="saved-indicator empty">
+                            Daily reflection
+                        </span>
+                    {% endif %}
+
+                    <button type="submit" class="save-button daily-save">
+                        <i class="fas fa-save"></i>
+                        Save Daily
+                    </button>
+
+                </div>
+
+            </form>
+
+        </section>
+
+
+        <section class="journal-panel weekly-panel">
+
+            <div class="journal-panel-header">
+
+                <div class="journal-icon weekly-icon">
+                    <i class="fas fa-calendar-week"></i>
+                </div>
+
+                <div>
+                    <h2>Weekly Journal</h2>
+                    <span>
+                        Week of {{ week_start.strftime('%B %d, %Y') }}
+                    </span>
+                </div>
+
+            </div>
+
+
+            <form method="POST" class="journal-form">
+
+                <input type="hidden"
+                       name="csrf_token"
+                       value="{{ csrf_token() }}">
+
+                <input type="hidden"
+                       name="date"
+                       value="{{ date_str }}">
+
+                <input type="hidden"
+                       name="entry_type"
+                       value="weekly">
+
+
+                <textarea
+                    name="content"
+                    class="journal-textarea"
+                    placeholder="Weekly reflection:
+
+What patterns did you notice?
+What worked consistently?
+What mistakes repeated?
+What should you focus on next week?"
+                >{{ weekly_entry.content if weekly_entry else '' }}</textarea>
+
+
+                <div class="journal-form-footer">
+
+                    {% if weekly_entry %}
+                        <span class="saved-indicator">
+                            <i class="fas fa-check"></i>
+                            Saved
+                        </span>
+                    {% else %}
+                        <span class="saved-indicator empty">
+                            Weekly reflection
+                        </span>
+                    {% endif %}
+
+                    <button type="submit" class="save-button weekly-save">
+                        <i class="fas fa-save"></i>
+                        Save Weekly
+                    </button>
+
+                </div>
+
+            </form>
+
+        </section>
+
+
+        <section class="journal-panel monthly-panel">
+
+            <div class="journal-panel-header">
+
+                <div class="journal-icon monthly-icon">
+                    <i class="fas fa-calendar-alt"></i>
+                </div>
+
+                <div>
+                    <h2>Monthly Journal</h2>
+                    <span>
+                        {{ date.strftime('%B %Y') }}
+                    </span>
+                </div>
+
+            </div>
+
+
+            <form method="POST" class="journal-form">
+
+                <input type="hidden"
+                       name="csrf_token"
+                       value="{{ csrf_token() }}">
+
+                <input type="hidden"
+                       name="date"
+                       value="{{ date_str }}">
+
+                <input type="hidden"
+                       name="entry_type"
+                       value="monthly">
+
+
+                <textarea
+                    name="content"
+                    class="journal-textarea"
+                    placeholder="Monthly review:
+
+What were your biggest achievements?
+What areas need improvement?
+What did your statistics tell you?
+What are your goals for next month?"
+                >{{ monthly_entry.content if monthly_entry else '' }}</textarea>
+
+
+                <div class="journal-form-footer">
+
+                    {% if monthly_entry %}
+                        <span class="saved-indicator">
+                            <i class="fas fa-check"></i>
+                            Saved
+                        </span>
+                    {% else %}
+                        <span class="saved-indicator empty">
+                            Monthly review
+                        </span>
+                    {% endif %}
+
+                    <button type="submit" class="save-button monthly-save">
+                        <i class="fas fa-save"></i>
+                        Save Monthly
+                    </button>
+
+                </div>
+
+            </form>
+
+        </section>
+
+    </div>
+
+</div>
+
+{% endblock %}
