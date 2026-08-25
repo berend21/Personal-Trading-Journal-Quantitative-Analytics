@@ -288,7 +288,7 @@ Docker is the preferred way to run the application.
 
 Clone the repository:
 ```
-git clone https://github.com/berend21/STS-Engine-Quantitative-Data-Pipeline.git
+git clone https://github.com/berend21/STS-Engine-Quantitative-Analytics.git
 cd STS-Engine-Quantitative-Data-Pipeline
 ```
 Build the image:
