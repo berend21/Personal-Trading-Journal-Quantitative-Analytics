@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='journal.css') }}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+{% endblock %}
+
+{% block title %}Trading Journal{% endblock %}
+
+{% block content %}
+
+<div class="journal-page">
+
+    <div class="journal-header">
+
+        <div class="journal-title">
+            <h1>{{ month_name }} {{ year }}</h1>
+            <span>Trading Journal</span>
+        </div>
+
+        <div class="journal-navigation">
+
+            <a href="{{ url_for('journal', year=prev_year, month=prev_month) }}"
+               class="nav-button"
+               title="Previous month">
+                <i class="fas fa-chevron-left"></i>
+            </a>
+
+            <a href="{{ url_for('journal') }}"
+               class="today-button">
+                {{ month_name }} {{ year }}
+            </a>
+
+            <a href="{{ url_for('journal', year=next_year, month=next_month) }}"
+               class="nav-button"
+               title="Next month">
+                <i class="fas fa-chevron-right"></i>
+            </a>
+
+        </div>
+
+    </div>
+
+    <div class="journal-calendar">
+
+        <div class="weekday-row">
+
+            {% for weekday in weekday_names %}
+                <div class="weekday">
+                    {{ weekday }}
+                </div>
+            {% endfor %}
+
+        </div>
+
+        <div class="calendar-body">
+
+            {% for week in calendar_data %}
+
+                <div class="calendar-week">
+
+                    {% for day in week %}
+
+                        {% if day == 0 %}
+
+                            <div class="calendar-day empty"></div>
+
+                        {% else %}
+
+                            {% set date_str = '%04d-%02d-%02d'|format(year, month, day) %}
+                            {% set day_data = trades_data.get(date_str) %}
+
+                            {% if day_data %}
+
+                                {% set total_r = day_data.get('total_r', 0) %}
+
+                                {% if total_r > 0 %}
+                                    {% set performance_class = 'profitable' %}
+                                {% elif total_r < 0 %}
+                                    {% set performance_class = 'losing' %}
+                                {% else %}
+                                    {% set performance_class = 'flat' %}
+                                {% endif %}
+
+                            {% else %}
+
+                                {% set performance_class = 'no-trades' %}
+
+                            {% endif %}
+
+                            <a href="{{ url_for('journal', date_str=date_str) }}"
+                               class="calendar-day {{ performance_class }}{% if date_str == today %} current-day{% endif %}">
+
+                                <div class="day-number">
+                                    {{ day }}
+                                </div>
+
+
+                                {% if day_data %}
+
+                                    <div class="day-performance">
+
+                                        {% if total_r > 0 %}
+                                            +{{ "%.2f"|format(total_r) }}R
+
+                                        {% elif total_r < 0 %}
+                                            {{ "%.2f"|format(total_r) }}R
+
+                                        {% else %}
+                                            0.00R
+                                        {% endif %}
+
+                                    </div>
+
+                                    <div class="trade-count">
+
+                                        {{ day_data.get('count', 0) }}
+
+                                        {% if day_data.get('count', 0) == 1 %}
+                                            trade
+                                        {% else %}
+                                            trades
+                                        {% endif %}
+
+                                    </div>
+
+                                    <div class="win-loss">
+
+                                        {% if day_data.get('wins', 0) > 0 %}
+                                            {{ day_data.get('wins', 0) }}W
+                                        {% endif %}
+
+                                        {% if day_data.get('losses', 0) > 0 %}
+                                            {{ day_data.get('losses', 0) }}L
+                                        {% endif %}
+
+                                    </div>
+
+                                {% else %}
+
+                                    <div class="no-trade-label">
+                                        No trades
+                                    </div>
+
+                                {% endif %}
+
+                                {% if date_str in journal_data %}
+
+                                    <div class="journal-indicators">
+
+                                        {% if journal_data[date_str].get('daily') %}
+                                            <span class="journal-dot daily"
+                                                  title="Daily journal"></span>
+                                        {% endif %}
+
+                                        {% if journal_data[date_str].get('weekly') %}
+                                            <span class="journal-dot weekly"
+                                                  title="Weekly journal"></span>
+                                        {% endif %}
+
+                                        {% if journal_data[date_str].get('monthly') %}
+                                            <span class="journal-dot monthly"
+                                                  title="Monthly journal"></span>
+                                        {% endif %}
+
+                                    </div>
+                                {% endif %}
+                            </a>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}
