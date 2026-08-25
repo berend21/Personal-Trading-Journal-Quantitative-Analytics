@@ -1,0 +1,389 @@
+
+.journal-page {
+    width: 100%;
+    max-width: 1600px;
+    margin: 30px auto;
+    padding: 0 24px;
+    color: #e5e7eb;
+}
+
+.journal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+}
+
+
+.journal-title h1 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    color: #f8fafc;
+}
+
+
+.journal-title span {
+    display: block;
+    margin-top: 5px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #dbeafe;
+    letter-spacing: 0.02em;
+}
+
+
+
+.journal-navigation {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+
+.nav-button,
+.today-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    height: 38px;
+
+    border: 1px solid #334155;
+    background: #111827;
+    color: #94a3b8;
+
+    text-decoration: none;
+
+    transition:
+        background-color 0.15s ease,
+        border-color 0.15s ease,
+        color 0.15s ease;
+}
+
+
+.nav-button {
+    width: 42px;
+    border-radius: 7px;
+}
+
+
+.today-button {
+    padding: 0 18px;
+    border-radius: 7px;
+    color: #e2e8f0;
+}
+
+
+.nav-button:hover,
+.today-button:hover {
+    background: #1e293b;
+    border-color: #475569;
+    color: #ffffff;
+}
+
+
+.journal-calendar {
+    width: 100%;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    overflow: hidden;
+
+    box-shadow:
+        0 20px 45px rgba(0, 0, 0, 0.35);
+    padding: 2px;
+}
+
+.weekday-row {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 2px;
+
+    background: #111827;
+    border-bottom: 1px solid #334155;
+}
+
+
+.weekday {
+    height: 42px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 55px;
+
+    font-size: 12px;
+    font-weight: 600;
+    color: #94a3b8;
+
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+
+    border-right: 1px solid #1e293b;
+}
+
+
+.weekday:last-child {
+    border-right: none;
+}
+
+
+.calendar-body {
+    width: 100%;
+}
+
+
+.calendar-week {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+
+    min-height: 135px;
+    gap: 2px;
+}
+
+
+.calendar-day {
+    position: relative;
+
+    min-width: 0;
+    min-height: 135px;
+    border-radius: 25px;
+
+    padding: 12px;
+
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+
+    text-decoration: none;
+    color: #e2e8f0;
+
+    border-right: 1px solid #334155;
+    border-bottom: 1px solid #334155;
+
+    overflow: hidden;
+
+    transition:
+        filter 0.15s ease,
+        transform 0.15s ease;
+}
+
+
+.calendar-day:nth-child(7) {
+    border-right: none;
+}
+
+
+.calendar-week:last-child .calendar-day {
+    border-bottom: none;
+}
+
+
+.calendar-day.empty {
+    background: #0b1220;
+}
+
+
+.calendar-day.no-trades {
+    background: #20262f;
+}
+
+
+.calendar-day.no-trades:hover {
+    background: #29313b;
+}
+
+
+
+.calendar-day.profitable {
+    background:
+        linear-gradient(
+            135deg,
+            #064e3b 0%,
+            #065f46 100%
+        );
+}
+
+
+.calendar-day.profitable:hover {
+    filter: brightness(1.15);
+}
+
+
+.calendar-day.losing {
+    background:
+        linear-gradient(
+            135deg,
+            #572019 0%,
+            #6b241b 100%
+        );
+}
+
+
+.calendar-day.losing:hover {
+    filter: brightness(1.15);
+}
+
+.calendar-day.flat {
+    background: #303740;
+}
+
+
+.day-number {
+    position: relative;
+    z-index: 2;
+
+    font-size: 12px;
+    font-weight: 600;
+
+    color: #cbd5e1;
+}
+
+
+.current-day {
+    box-shadow:
+        inset 0 0 0 2px #3b82f6;
+}
+
+
+.current-day .day-number {
+    color: #ffffff;
+}
+
+
+.day-performance {
+    margin-top: auto;
+
+    width: 100%;
+
+    font-size: 18px;
+    line-height: 1.1;
+
+    font-weight: 700;
+
+    color: #f8fafc;
+
+    letter-spacing: -0.02em;
+}
+
+.trade-count {
+    margin-top: 5px;
+
+    font-size: 11px;
+    color: rgba(226, 232, 240, 0.75);
+}
+
+
+.win-loss {
+    margin-top: 4px;
+
+    font-size: 10px;
+
+    color: rgba(226, 232, 240, 0.55);
+}
+
+
+.no-trade-label {
+    margin-top: auto;
+    margin-bottom: 5px;
+
+    width: 100%;
+
+    text-align: center;
+
+    font-size: 10px;
+    color: #64748b;
+}
+
+.journal-indicators {
+    position: absolute;
+
+    top: 12px;
+    right: 12px;
+
+    display: flex;
+    gap: 4px;
+}
+
+
+.journal-dot {
+    width: 6px;
+    height: 6px;
+
+    border-radius: 50%;
+
+    display: block;
+}
+
+
+.journal-dot.daily {
+    background: #60a5fa;
+}
+
+
+.journal-dot.weekly {
+    background: #a78bfa;
+}
+
+
+.journal-dot.monthly {
+    background: #fbbf24;
+}
+
+
+@media (max-width: 1000px) {
+
+    .journal-page {
+        padding: 0 12px;
+    }
+
+    .calendar-day {
+        min-height: 110px;
+        padding: 9px;
+    }
+
+    .day-performance {
+        font-size: 15px;
+    }
+}
+
+
+@media (max-width: 700px) {
+
+    .journal-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+    }
+
+    .journal-navigation {
+        width: 100%;
+    }
+
+    .nav-button {
+        flex: 1;
+    }
+
+    .today-button {
+        flex: 2;
+    }
+
+    .calendar-day {
+        min-height: 90px;
+        padding: 7px;
+    }
+
+    .day-number {
+        font-size: 10px;
+    }
+
+    .day-performance {
+        font-size: 12px;
+    }
+
+    .trade-count,
+    .win-loss {
+        font-size: 9px;
+    }
+}
