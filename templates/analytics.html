@@ -1,0 +1,1306 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='analytics.css') }}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+{% endblock %}
+
+{% block title %}Analytics - STS{% endblock %}
+
+{% block content %}
+
+<div class="analytics-header">
+    <div>
+        <h1>Analytics</h1>
+        <div class="analytics-subtitle">
+            Quantitative performance overview
+        </div>
+    </div>
+
+    <form method="get" id="period-form">
+        <div class="period-selector">
+            <label for="period">
+                <i class="fa-solid fa-calendar"></i>
+                Period
+            </label>
+
+            <select
+                name="period"
+                id="period"
+                onchange="document.getElementById('period-form').submit()"
+            >
+                <option value="monthly"
+                    {% if period == 'monthly' %}selected{% endif %}>
+                    Monthly
+                </option>
+
+                <option value="last_month"
+                    {% if period == 'last_month' %}selected{% endif %}>
+                    Last Month
+                </option>
+
+                <option value="yearly"
+                    {% if period == 'yearly' %}selected{% endif %}>
+                    Yearly
+                </option>
+
+                <option value="all"
+                    {% if period == 'all' %}selected{% endif %}>
+                    All Time
+                </option>
+            </select>
+        </div>
+    </form>
+</div>
+
+<hr class="title-divider">
+
+
+<section class="analytics-section">
+
+    <div class="section-heading">
+        <div>
+            <h2>Overview</h2>
+            <p>Core performance metrics for the selected period.</p>
+        </div>
+    </div>
+
+    <div class="metrics-grid">
+
+
+        <div class="metric-card dark">
+            <div class="metric-icon blue-bg">
+                <i class="fa-solid fa-chart-column"></i>
+            </div>
+
+            <div>
+                <div class="metric-title">Total Trades</div>
+
+                <div class="metric-main">
+                    {{ analytics_data.total_trades }}
+                </div>
+
+                <div class="metric-sub">
+                    <span>
+                        {{ analytics_data.closed_count }} Closed
+                    </span>
+
+                    <span>
+                        {{ analytics_data.open_count }} Open
+                    </span>
+                </div>
+            </div>
+        </div>
+
+
+
+        <div class="metric-card dark">
+            <div class="metric-icon blue-bg">
+                <i class="fa-solid fa-trophy"></i>
+            </div>
+
+            <div>
+                <div class="metric-title">Win Rate</div>
+
+                <div class="metric-main">
+                    {{ "%.1f"|format(analytics_data.win_rate) }}%
+                </div>
+
+                <div class="metric-sub">
+                    <span class="win-count">
+                        {{ analytics_data.win_count }} W
+                    </span>
+
+                    <span class="loss-count">
+                        {{ analytics_data.loss_count }} L
+                    </span>
+                </div>
+
+                <div class="metric-breakeven">
+                    {{ analytics_data.breakeven_count }} Breakeven
+                </div>
+            </div>
+        </div>
+
+
+        <div class="metric-card dark">
+            <div class="metric-icon blue-bg">
+                <i class="fa-solid fa-scale-balanced"></i>
+            </div>
+
+            <div>
+                <div class="metric-title">Total R</div>
+
+                <div class="metric-main
+                    {% if analytics_data.total_rr > 0 %}
+                        positive
+                    {% elif analytics_data.total_rr < 0 %}
+                        negative
+                    {% endif %}
+                ">
+                    {{ "%.2f"|format(analytics_data.total_rr) }}R
+                </div>
+
+                <div class="metric-sub">
+                    Average:
+                    {{ "%.2f"|format(analytics_data.average_rr) }}R
+                </div>
+            </div>
+        </div>
+
+
+        <div class="metric-card dark">
+            <div class="metric-icon blue-bg">
+                <i class="fa-solid fa-bullseye"></i>
+            </div>
+
+            <div>
+                <div class="metric-title">Expectancy</div>
+
+                <div class="metric-main
+                    {% if analytics_data.expectancy > 0 %}
+                        positive
+                    {% elif analytics_data.expectancy < 0 %}
+                        negative
+                    {% endif %}
+                ">
+                    {{ "%.2f"|format(analytics_data.expectancy) }}R
+                </div>
+
+                <div class="metric-sub">
+                    Per closed trade
+                </div>
+            </div>
+        </div>
+
+
+        <div class="metric-card dark">
+            <div class="metric-icon blue-bg">
+                <i class="fa-solid fa-arrow-trend-up"></i>
+            </div>
+
+            <div>
+                <div class="metric-title">Profit Factor</div>
+
+                <div class="metric-main">
+                    {% if analytics_data.profit_factor is not none %}
+                        {{ "%.2f"|format(analytics_data.profit_factor) }}
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </div>
+
+                <div class="metric-sub">
+                    Gross profit / gross loss
+                </div>
+            </div>
+        </div>
+
+
+
+        <div class="metric-card dark">
+            <div class="metric-icon blue-bg">
+                <i class="fa-solid fa-chart-simple"></i>
+            </div>
+
+            <div>
+                <div class="metric-title">Median R</div>
+
+                <div class="metric-main">
+                    {% if analytics_data.median_rr is not none %}
+                        {{ "%.2f"|format(analytics_data.median_rr) }}R
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </div>
+
+                <div class="metric-sub">
+                    Typical trade result
+                </div>
+            </div>
+        </div>
+
+
+
+        <div class="metric-card dark">
+            <div class="metric-icon blue-bg">
+                <i class="fa-solid fa-clock"></i>
+            </div>
+
+            <div>
+                <div class="metric-title">Avg Duration</div>
+
+                <div class="metric-main">
+                    {{ "%.1f"|format(analytics_data.avg_trade_duration) }}
+                    days
+                </div>
+
+                <div class="metric-sub">
+                    {{ "%.2f"|format(analytics_data.avg_trade_duration_hours) }}
+                    hours
+                </div>
+            </div>
+        </div>
+
+
+
+        <div class="metric-card dark">
+            <div class="metric-icon blue-bg">
+                <i class="fa-solid fa-tag"></i>
+            </div>
+
+            <div>
+                <div class="metric-title">Most Used Symbol</div>
+
+                <div class="metric-main">
+                    {{ analytics_data.most_used_ticker }}
+                </div>
+
+                <div class="metric-sub">
+                    Most frequently traded
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</section>
+
+<section class="analytics-section">
+
+    <div class="section-heading">
+        <div>
+            <h2>Equity Curve</h2>
+            <p>Cumulative R across closed trades.</p>
+        </div>
+    </div>
+
+    <div class="chart-panel">
+
+        <canvas id="equityChart"></canvas>
+
+    </div>
+
+</section>
+
+
+<section class="analytics-section">
+
+    <div class="section-heading">
+        <div>
+            <h2>
+                R over
+                {% if period == "monthly" %}
+                    Days
+                {% elif period == "yearly" %}
+                    Months
+                {% else %}
+                    Trading Days
+                {% endif %}
+            </h2>
+
+            <p>
+                Performance distribution over the selected period.
+            </p>
+        </div>
+    </div>
+
+    <div class="chart-panel">
+
+        <canvas id="rrChart"></canvas>
+
+    </div>
+
+</section>
+
+
+
+<section class="analytics-section">
+
+    <div class="section-heading">
+        <div>
+            <h2>Risk & Performance</h2>
+            <p>Statistics describing the quality and consistency of your edge.</p>
+        </div>
+    </div>
+
+    <div class="stats-panel">
+
+        <div class="stats-columns">
+
+            <div class="stats-col">
+
+                <div class="stats-type-title">
+                    Performance
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Average Win</span>
+                    <span class="value positive">
+                        {{ "%.2f"|format(analytics_data.average_win) }}R
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Average Loss</span>
+                    <span class="value negative">
+                        {{ "%.2f"|format(analytics_data.average_loss) }}R
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Payoff Ratio</span>
+                    <span class="value">
+                        {% if analytics_data.payoff_ratio is not none %}
+                            {{ "%.2f"|format(analytics_data.payoff_ratio) }}
+                        {% else %}
+                            N/A
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Gross Profit</span>
+                    <span class="value positive">
+                        {{ "%.2f"|format(analytics_data.gross_profit) }}R
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Gross Loss</span>
+                    <span class="value negative">
+                        -{{ "%.2f"|format(analytics_data.gross_loss) }}R
+                    </span>
+                </div>
+
+            </div>
+
+
+            <div class="stats-col">
+
+                <div class="stats-type-title">
+                    Risk
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Max Drawdown</span>
+                    <span class="value negative">
+                        {{ "%.2f"|format(analytics_data.max_drawdown) }}R
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Drawdown %</span>
+                    <span class="value">
+                        {{ "%.2f"|format(analytics_data.max_drawdown_pct) }}%
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">R Std. Deviation</span>
+                    <span class="value">
+                        {{ "%.2f"|format(analytics_data.rr_stddev) }}R
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Best Trade</span>
+                    <span class="value positive">
+                        {{ "%.2f"|format(analytics_data.highest_rr) }}R
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Worst Trade</span>
+                    <span class="value negative">
+                        {{ "%.2f"|format(analytics_data.lowest_rr) }}R
+                    </span>
+                </div>
+
+            </div>
+
+
+            <div class="stats-col">
+
+                <div class="stats-type-title">
+                    Streaks
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Best Win Streak</span>
+                    <span class="value positive">
+                        {{ analytics_data.max_win_streak }}
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Worst Loss Streak</span>
+                    <span class="value negative">
+                        {{ analytics_data.max_loss_streak }}
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Breakeven Rate</span>
+                    <span class="value">
+                        {{ "%.1f"|format(analytics_data.breakeven_rate) }}%
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Expectancy</span>
+                    <span class="value
+                        {% if analytics_data.expectancy > 0 %}
+                            positive
+                        {% elif analytics_data.expectancy < 0 %}
+                            negative
+                        {% endif %}
+                    ">
+                        {{ "%.2f"|format(analytics_data.expectancy) }}R
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Edge Status</span>
+                    <span class="value
+                        {% if analytics_data.positive_expectancy %}
+                            positive
+                        {% else %}
+                            negative
+                        {% endif %}
+                    ">
+                        {% if analytics_data.positive_expectancy %}
+                            Positive
+                        {% else %}
+                            Negative
+                        {% endif %}
+                    </span>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</section>
+
+
+<section class="analytics-section">
+
+    <div class="section-heading">
+        <div>
+            <h2>Drawdown</h2>
+            <p>Peak-to-trough decline of the cumulative R curve.</p>
+        </div>
+    </div>
+
+    <div class="chart-panel">
+
+        <canvas id="drawdownChart"></canvas>
+
+    </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- LONG / SHORT -->
+<!-- ========================================================= -->
+
+<section class="analytics-section">
+
+    <div class="section-heading">
+        <div>
+            <h2>Long vs Short</h2>
+            <p>Compare directional execution and performance.</p>
+        </div>
+    </div>
+
+    <div class="direction-grid">
+
+        <div class="stats-panel direction-card long-card">
+
+            <div class="stats-title">
+                <i class="fa-solid fa-arrow-up"></i>
+                LONG
+            </div>
+
+            <div class="stats-row">
+                <span class="label">Trades</span>
+                <span class="value">
+                    {{ analytics_data.direction_stats.LONG.count }}
+                </span>
+            </div>
+
+            <div class="stats-row">
+                <span class="label">Closed</span>
+                <span class="value">
+                    {{ analytics_data.direction_stats.LONG.closed_count }}
+                </span>
+            </div>
+
+            <div class="stats-row">
+                <span class="label">Win Rate</span>
+                <span class="value">
+                    {{ "%.1f"|format(
+                        analytics_data.direction_stats.LONG.win_rate
+                    ) }}%
+                </span>
+            </div>
+
+            <div class="stats-row">
+                <span class="label">Total R</span>
+                <span class="value
+                    {% if analytics_data.direction_stats.LONG.total_rr > 0 %}
+                        positive
+                    {% elif analytics_data.direction_stats.LONG.total_rr < 0 %}
+                        negative
+                    {% endif %}
+                ">
+                    {{ "%.2f"|format(
+                        analytics_data.direction_stats.LONG.total_rr
+                    ) }}R
+                </span>
+            </div>
+
+        </div>
+
+        <div class="stats-panel direction-card short-card">
+
+            <div class="stats-title">
+                <i class="fa-solid fa-arrow-down"></i>
+                SHORT
+            </div>
+
+            <div class="stats-row">
+                <span class="label">Trades</span>
+                <span class="value">
+                    {{ analytics_data.direction_stats.SHORT.count }}
+                </span>
+            </div>
+
+            <div class="stats-row">
+                <span class="label">Closed</span>
+                <span class="value">
+                    {{ analytics_data.direction_stats.SHORT.closed_count }}
+                </span>
+            </div>
+
+            <div class="stats-row">
+                <span class="label">Win Rate</span>
+                <span class="value">
+                    {{ "%.1f"|format(
+                        analytics_data.direction_stats.SHORT.win_rate
+                    ) }}%
+                </span>
+            </div>
+
+            <div class="stats-row">
+                <span class="label">Total R</span>
+                <span class="value
+                    {% if analytics_data.direction_stats.SHORT.total_rr > 0 %}
+                        positive
+                    {% elif analytics_data.direction_stats.SHORT.total_rr < 0 %}
+                        negative
+                    {% endif %}
+                ">
+                    {{ "%.2f"|format(
+                        analytics_data.direction_stats.SHORT.total_rr
+                    ) }}R
+                </span>
+            </div>
+
+        </div>
+
+    </div>
+
+</section>
+
+
+<section class="analytics-section">
+
+    <div class="section-heading">
+        <div>
+            <h2>Performance by Type</h2>
+            <p>Compare HTF, MTF and LTF trade performance.</p>
+        </div>
+    </div>
+
+    <div class="stats-panel">
+
+        <div class="stats-columns">
+
+            {% for type in ["HTF", "MTF", "LTF"] %}
+
+            <div class="stats-col">
+
+                <div class="stats-type-title">
+                    {{ type }}
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Trades</span>
+                    <span class="value">
+                        {{ analytics_data.trades_per_type[type] }}
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Closed</span>
+                    <span class="value">
+                        {{ analytics_data.type_stats[type].closed_count }}
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Win Rate</span>
+                    <span class="value">
+                        {{ "%.1f"|format(
+                            analytics_data.type_stats[type].win_rate
+                        ) }}%
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Average R</span>
+                    <span class="value">
+                        {{ "%.2f"|format(
+                            analytics_data.type_stats[type].average_rr
+                        ) }}R
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Total R</span>
+
+                    <span class="value
+                        {% if analytics_data.type_stats[type].total_rr > 0 %}
+                            positive
+                        {% elif analytics_data.type_stats[type].total_rr < 0 %}
+                            negative
+                        {% endif %}
+                    ">
+                        {{ "%.2f"|format(
+                            analytics_data.type_stats[type].total_rr
+                        ) }}R
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Long / Short</span>
+
+                    <span class="value">
+                        {{ analytics_data.long_short_per_type[type].long_count }}
+                        /
+                        {{ analytics_data.long_short_per_type[type].short_count }}
+                    </span>
+                </div>
+
+            </div>
+
+            {% endfor %}
+
+        </div>
+
+    </div>
+
+</section>
+
+
+<section class="analytics-section">
+
+    <div class="section-heading">
+        <div>
+            <h2>Symbol Performance</h2>
+            <p>Which instruments are contributing to your edge?</p>
+        </div>
+    </div>
+
+    <div class="table-panel">
+
+        {% if analytics_data.symbol_stats %}
+
+        <div class="analytics-table-wrapper">
+
+            <table class="analytics-table">
+
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Trades</th>
+                        <th>Wins</th>
+                        <th>Losses</th>
+                        <th>Win Rate</th>
+                        <th>Total R</th>
+                        <th>Average R</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    {% for symbol in analytics_data.symbol_stats %}
+
+                    <tr>
+
+                        <td class="symbol-name">
+                            {{ symbol.symbol }}
+                        </td>
+
+                        <td>
+                            {{ symbol.trade_count }}
+                        </td>
+
+                        <td class="positive">
+                            {{ symbol.wins }}
+                        </td>
+
+                        <td class="negative">
+                            {{ symbol.losses }}
+                        </td>
+
+                        <td>
+                            {{ "%.1f"|format(symbol.win_rate) }}%
+                        </td>
+
+                        <td class="
+                            {% if symbol.total_rr > 0 %}
+                                positive
+                            {% elif symbol.total_rr < 0 %}
+                                negative
+                            {% endif %}
+                        ">
+                            {{ "%.2f"|format(symbol.total_rr) }}R
+                        </td>
+
+                        <td class="
+                            {% if symbol.average_rr > 0 %}
+                                positive
+                            {% elif symbol.average_rr < 0 %}
+                                negative
+                            {% endif %}
+                        ">
+                            {{ "%.2f"|format(symbol.average_rr) }}R
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+        {% else %}
+
+        <div class="empty-state">
+            No symbol data available for this period.
+        </div>
+
+        {% endif %}
+
+    </div>
+
+</section>
+
+<section class="analytics-section">
+
+    <div class="section-heading">
+        <div>
+            <h2>Trading Days</h2>
+            <p>Daily R performance for the selected period.</p>
+        </div>
+    </div>
+
+    <div class="day-summary-grid">
+
+        <div class="stats-panel">
+
+            <div class="stats-title">
+                Best Day
+            </div>
+
+            {% if analytics_data.best_day %}
+
+                <div class="day-result positive">
+                    +{{ "%.2f"|format(
+                        analytics_data.best_day.rr
+                    ) }}R
+                </div>
+
+                <div class="day-date">
+                    {{ analytics_data.best_day.date }}
+                </div>
+
+                <div class="day-trades">
+                    {{ analytics_data.best_day.trade_count }} trades
+                </div>
+
+            {% else %}
+
+                <div class="empty-state">
+                    No data
+                </div>
+
+            {% endif %}
+
+        </div>
+
+
+        <div class="stats-panel">
+
+            <div class="stats-title">
+                Worst Day
+            </div>
+
+            {% if analytics_data.worst_day %}
+
+                <div class="day-result negative">
+                    {{ "%.2f"|format(
+                        analytics_data.worst_day.rr
+                    ) }}R
+                </div>
+
+                <div class="day-date">
+                    {{ analytics_data.worst_day.date }}
+                </div>
+
+                <div class="day-trades">
+                    {{ analytics_data.worst_day.trade_count }} trades
+                </div>
+
+            {% else %}
+
+                <div class="empty-state">
+                    No data
+                </div>
+
+            {% endif %}
+
+        </div>
+
+    </div>
+
+</section>
+
+
+<section class="analytics-section">
+
+    <div class="section-heading">
+        <div>
+            <h2>Data Quality</h2>
+            <p>Potential issues in the underlying trade records.</p>
+        </div>
+    </div>
+
+    <div class="stats-panel">
+
+        <div class="stats-row">
+            <span class="label">
+                Closed trades missing RR
+            </span>
+
+            <span class="value
+                {% if analytics_data.missing_rr_count > 0 %}
+                    negative
+                {% else %}
+                    positive
+                {% endif %}
+            ">
+                {{ analytics_data.missing_rr_count }}
+            </span>
+        </div>
+
+        <div class="stats-row">
+            <span class="label">
+                Closed trades missing close time
+            </span>
+
+            <span class="value
+                {% if analytics_data.missing_close_time_count > 0 %}
+                    negative
+                {% else %}
+                    positive
+                {% endif %}
+            ">
+                {{ analytics_data.missing_close_time_count }}
+            </span>
+        </div>
+
+    </div>
+
+</section>
+
+
+{% endblock %}
+
+
+{% block extra_scripts %}
+
+<script src="{{ url_for('static', filename='analytics.js') }}"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function () {
+
+    const toggleBtn = document.querySelector('.navbar-toggle');
+    const navbar = document.querySelector('.navbar');
+
+    if (toggleBtn && navbar) {
+
+        toggleBtn.onclick = function (e) {
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            navbar.classList.toggle('expanded');
+
+        };
+
+        document.onclick = function (e) {
+
+            if (
+                !navbar.contains(e.target) &&
+                navbar.classList.contains('expanded')
+            ) {
+                navbar.classList.remove('expanded');
+            }
+
+        };
+
+    }
+
+
+    /* ============================================================
+       SHARED CHART SETTINGS
+       ============================================================ */
+
+    const chartTextColor = '#9aa4b2';
+    const gridColor = 'rgba(255,255,255,0.06)';
+
+
+
+    const rrCanvas = document.getElementById('rrChart');
+
+    if (rrCanvas) {
+
+        const rrData = {{ analytics_data.rr_values|tojson }};
+        const rrLabels = {{ analytics_data.rr_labels|tojson }};
+
+        new Chart(rrCanvas.getContext('2d'), {
+
+            type: 'bar',
+
+            data: {
+
+                labels: rrLabels,
+
+                datasets: [{
+
+                    label: 'R',
+
+                    data: rrData,
+
+                    backgroundColor: rrData.map(
+                        value =>
+                            value >= 0
+                                ? 'rgba(46, 204, 64, 0.65)'
+                                : 'rgba(255, 65, 54, 0.65)'
+                    ),
+
+                    borderColor: rrData.map(
+                        value =>
+                            value >= 0
+                                ? '#2ecc40'
+                                : '#ff4136'
+                    ),
+
+                    borderWidth: 1,
+
+                    borderRadius: 4
+
+                }]
+
+            },
+
+            options: {
+
+                responsive: true,
+
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+
+                plugins: {
+
+                    legend: {
+                        display: false
+                    }
+
+                },
+
+                scales: {
+
+                    x: {
+
+                        grid: {
+                            display: false
+                        },
+
+                        ticks: {
+                            color: chartTextColor
+                        }
+
+                    },
+
+                    y: {
+
+                        grid: {
+                            color: gridColor
+                        },
+
+                        ticks: {
+                            color: chartTextColor
+                        },
+
+                        title: {
+                            display: true,
+                            text: 'R',
+                            color: chartTextColor
+                        }
+
+                    }
+
+                }
+
+            }
+
+        });
+
+    }
+
+
+    const equityCanvas = document.getElementById('equityChart');
+    
+
+    if (equityCanvas) {
+
+        const equityData =
+            {{ analytics_data.equity_curve|tojson }};
+
+        new Chart(
+            equityCanvas.getContext('2d'),
+            {
+
+                type: 'line',
+
+                data: {
+
+                    labels: equityData.map(
+                        (_, index) => index + 1
+                    ),
+
+                    datasets: [{
+
+                        label: 'Cumulative R',
+
+                        data: equityData,
+
+                        borderColor: '#0074D9',
+
+                        backgroundColor:
+                            'rgba(0, 116, 217, 0.10)',
+
+                        fill: true,
+
+                        tension: 0.25,
+
+                        pointRadius: 0,
+
+                        borderWidth: 2
+
+                    }]
+
+                },
+
+                options: {
+
+                    responsive: true,
+
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+
+                    plugins: {
+
+                        legend: {
+                            display: false
+                        }
+
+                    },
+
+                    scales: {
+
+                        x: {
+
+                            grid: {
+                                display: false
+                            },
+
+                            ticks: {
+                                color: chartTextColor
+                            },
+
+                            title: {
+                                display: true,
+                                text: 'Trade',
+                                color: chartTextColor
+                            }
+
+                        },
+
+                        y: {
+
+                            grid: {
+                                color: gridColor
+                            },
+
+                            ticks: {
+                                color: chartTextColor
+                            },
+
+                            title: {
+                                display: true,
+                                text: 'Cumulative R',
+                                color: chartTextColor
+                            }
+
+                        }
+
+                    }
+
+                }
+
+            }
+        );
+
+    }
+
+
+    const drawdownCanvas =
+        document.getElementById('drawdownChart');
+
+    if (drawdownCanvas) {
+
+        const drawdownData =
+            {{ analytics_data.drawdown_curve|tojson }};
+
+        new Chart(
+            drawdownCanvas.getContext('2d'),
+            {
+
+                type: 'line',
+
+                data: {
+
+                    labels: drawdownData.map(
+                        (_, index) => index + 1
+                    ),
+
+                    datasets: [{
+
+                        label: 'Drawdown',
+
+                        data: drawdownData,
+
+                        borderColor: '#ff4136',
+
+                        backgroundColor:
+                            'rgba(255, 65, 54, 0.12)',
+
+                        fill: true,
+
+                        tension: 0.25,
+
+                        pointRadius: 0,
+
+                        borderWidth: 2
+
+                    }]
+
+                },
+
+                options: {
+
+                    responsive: true,
+
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+
+                    plugins: {
+
+                        legend: {
+                            display: false
+                        }
+
+                    },
+
+                    scales: {
+
+                        x: {
+
+                            grid: {
+                                display: false
+                            },
+
+                            ticks: {
+                                color: chartTextColor
+                            },
+
+                            title: {
+                                display: true,
+                                text: 'Trade',
+                                color: chartTextColor
+                            }
+
+                        },
+
+                        y: {
+
+                            grid: {
+                                color: gridColor
+                            },
+
+                            ticks: {
+                                color: chartTextColor
+                            },
+
+                            title: {
+                                display: true,
+                                text: 'Drawdown (R)',
+                                color: chartTextColor
+                            }
+
+                        }
+
+                    }
+
+                }
+
+            }
+        );
+
+    }
+
+});
+
+</script>
+
+{% endblock %}
