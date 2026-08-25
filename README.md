@@ -147,7 +147,7 @@ A dedicated space for storing and reviewing visual trading material such as:
 <img width="1917" height="917" alt="image" src="https://github.com/user-attachments/assets/fe0e1b4b-84b3-4c8c-a085-1259fbfde543" />
 
 # Journal
-<img width="1918" height="914" alt="image" src="https://github.com/user-attachments/assets/4337c865-ff94-4b0a-a186-5eccdcee0011" />
+<img width="1919" height="915" alt="Screenshot 2026-08-25 165523" src="https://github.com/user-attachments/assets/bc943650-4d46-4075-a812-8cda80a5a462" />
 
 # Journal entry
 <img width="1918" height="917" alt="image" src="https://github.com/user-attachments/assets/a949f27e-5bc8-4921-a1a8-70574772a47c" />
