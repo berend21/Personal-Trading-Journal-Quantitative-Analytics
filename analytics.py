@@ -5,6 +5,8 @@ from login import login_required
 from datetime import datetime, timedelta
 import calendar
 import math
+from asset_classifier import get_asset_class, ASSET_CLASSES
+
 
 
 
@@ -171,6 +173,86 @@ def _calculate_drawdown(rr_values):
         drawdown_curve,
     )
 
+def _calculate_asset_class_stats(rows):
+    stats = {
+        asset_class: {
+            "trade_count": 0,
+            "closed_count": 0,
+            "wins": 0,
+            "losses": 0,
+            "breakevens": 0,
+            "total_rr": 0.0,
+            "gross_profit": 0.0,
+            "gross_loss": 0.0,
+        }
+        for asset_class in ASSET_CLASSES
+    }
+
+    for row in rows:
+        symbol = (row["symbol"] or "").strip().upper()
+        asset_class = get_asset_class(symbol)
+
+        if asset_class not in stats:
+            stats[asset_class] = {
+                "trade_count": 0,
+                "closed_count": 0,
+                "wins": 0,
+                "losses": 0,
+                "breakevens": 0,
+                "total_rr": 0.0,
+                "gross_profit": 0.0,
+                "gross_loss": 0.0,
+            }
+
+        data = stats[asset_class]
+        data["trade_count"] += 1
+
+        if row["status"] != "CLOSED" or row["RR"] is None:
+            continue
+
+        rr = _safe_float(row["RR"])
+
+        data["closed_count"] += 1
+        data["total_rr"] += rr
+
+        if rr > 0:
+            data["wins"] += 1
+            data["gross_profit"] += rr
+
+        elif rr < 0:
+            data["losses"] += 1
+            data["gross_loss"] += abs(rr)
+
+        else:
+            data["breakevens"] += 1
+
+    for asset_class, data in stats.items():
+        closed_count = data["closed_count"]
+
+        data["win_rate"] = _percentage(
+            data["wins"],
+            closed_count,
+        )
+
+        data["average_rr"] = (
+            round(data["total_rr"] / closed_count, 2)
+            if closed_count
+            else 0.0
+        )
+
+        data["profit_factor"] = (
+            round(
+                data["gross_profit"] /
+                data["gross_loss"],
+                2,
+            )
+            if data["gross_loss"] > 0
+            else None
+        )
+
+        data["total_rr"] = round(data["total_rr"], 2)
+
+    return stats
 
 
 @app.route("/analytics", methods=["GET", "POST"])
@@ -186,6 +268,24 @@ def analytics():
 
     conn = get_db()
     where_clause, filter_params = _build_filter(period, now)
+
+    asset_class_rows = conn.execute(
+        f"""
+        SELECT
+            symbol,
+            status,
+            RR
+        FROM trades
+        WHERE {where_clause}
+        """,
+        filter_params,
+    ).fetchall()
+
+    asset_class_stats = _calculate_asset_class_stats(
+        asset_class_rows
+    )
+    
+
 
     total_trades = conn.execute(
         f"""
@@ -484,25 +584,17 @@ def analytics():
             continue
 
         count = int(row["total"] or 0)
+        closed_count = int(row["closed_count"] or 0)
         wins = int(row["wins"] or 0)
 
-        for row in direction_rows:
-            direction = row["sort"]
+        direction_stats[direction] = {
+            "count": count,
+            "closed_count": closed_count,
+            "wins": wins,
+            "win_rate": _percentage(wins, closed_count),
+            "total_rr": _round(row["total_rr"]),
+        }
 
-            if direction not in direction_stats:
-                continue
-
-            count = int(row["total"] or 0)
-            closed_count = int(row["closed_count"] or 0)
-            wins = int(row["wins"] or 0)
-
-            direction_stats[direction] = {
-                "count": count,
-                "closed_count": closed_count,
-                "wins": wins,
-                "win_rate": _percentage(wins, closed_count),
-                "total_rr": _round(row["total_rr"]),
-            }
 
 
     long_count = direction_stats["LONG"]["count"]
@@ -969,6 +1061,9 @@ def analytics():
 
         "most_used_ticker": most_used_ticker,
         "symbol_stats": symbol_stats,
+
+        "asset_class_stats": asset_class_stats,
+
 
         "avg_trade_duration": float(
             avg_trade_duration_days
