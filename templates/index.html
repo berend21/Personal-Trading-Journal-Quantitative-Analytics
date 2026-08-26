@@ -91,15 +91,34 @@
                 {% if trades %}
                     {% for user in trades %}
                         {% if not user.parent_id %}
-                    <tr class="{% if user.RR is not none %}
-                            {% if user.RR >= 0 %}winner
-                            {% elif user.RR < 0 %}loser
-                            {% else %}breakeven{% endif %}
-                        {% else %}open-trade{% endif %}"
+                        {% set partials = partials_by_parent.get(user.id|int, []) %}
+
+                    <tr class="trade-parent {% if user.RR is not none %}
+                            {% if user.RR >= 0 %}winner{% elif user.RR < 0 %}loser{% else %}breakeven{% endif %}{% else %}open-trade{% endif %}"
                         id="row-{{ user.id }}"
+                        data-trade-id="{{ user.id }}"
+                        data-trade-status="{{ user.status }}"
                         onclick="if (!this.classList.contains('editing')) window.location='{{ url_for('user_detail', user_id=user.id) }}';"
                         style="cursor:pointer;">
-                        <td data-label="ID" data-value="{{ user.id }}" style="text-align: center;">{{ user.id }}</td>
+
+                        <td data-label="ID" data-value="{{ user.id }}" class="trade-id-cell" style="text-align: center;">
+
+                            {% if partials %}
+                                <button type="button"
+                                        class="collapse-arrow"
+                                        data-parent-id="{{ user.id }}"
+                                        onclick="toggleTradeChildren(event, {{ user.id }})"
+                                        aria-label="Collapse trade">
+                                    <span class="collapse-arrow-icon">▾</span>
+                                </button>
+                            {% else %}
+                                <span class="collapse-arrow-placeholder" aria-hidden="true"></span>
+                            {% endif %}
+
+                            <span class="trade-id-number">{{ user.id }}</span>
+                        </td>
+
+
                         <td data-label="Ticker" data-value="{{ user.symbol }}" class="editable" data-field="symbol">{{ user.symbol }}</td>
                         <td data-label="Open Time" data-value="{{ user.symbol }}" class="editable" data-field="open_time">
                             {% if user.open_time %}
@@ -148,7 +167,7 @@
                         </td>
                     </tr>
 
-                    <tr id="partial-form-row-{{ user.id }}" class="special-row partial-form-row" style="display:none;">
+                    <tr id="partial-form-row-{{ user.id }}" class="special-row partial-form-row" data-parent-id="{{ user.id }}" style="display:none;">
                     <form method="post" action="{{ url_for('partial_close_inline', parent_id=user.id) }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <td>↳ {{ user.id }}.new</td>
@@ -186,9 +205,8 @@
                     </form>
                     </tr>
 
-                    {% set partials = partials_by_parent.get(user.id|int, []) %}
                     {% for partial in partials %}
-                    <tr id="row-{{ partial.id }}" class="partial-close-row" onclick="if(!this.classList.contains('editing')) window.location='{{ url_for('user_detail', user_id=partial.id) }}';" style="cursor:pointer;">
+                    <tr id="row-{{ partial.id }}" class="partial-close-row trade-child {% if user.status != 'OPEN' %}collapsed{% endif %}" data-parent-id="{{ user.id }}" onclick="if(!this.classList.contains('editing')) window.location='{{ url_for('user_detail', user_id=partial.id) }}';" style="cursor:pointer;">
                         <td data-label="ID" style="padding-left: 2em;">↳ {{ user.id }}.{{ loop.index }}</td>
                         <td data-label="Symbol" class="editable" data-field="symbol">{{ partial.symbol }}</td>
                         <td data-label="Open Time" class="editable" data-field="open_time">
@@ -362,6 +380,8 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     updateThemeIcons();
+    initializeTradeCollapseState();
+
 });
 
 
@@ -418,20 +438,165 @@ window.togglePartialPriceTimeInputs = function(userId) {
 
 window.togglePartialForm = function(userId) {
     console.log('🟡 togglePartialForm called for:', userId);
+
     const row = document.getElementById(`partial-form-row-${userId}`);
+
     if (!row) {
         console.error('❌ Partial form row not found:', userId);
         return;
     }
-    
+
+    // Make sure the parent is expanded when adding a partial.
+    expandTrade(userId);
+
+    // Show the partial form.
+    row.classList.remove('collapsed');
+    row.classList.add('show');
+
     row.style.setProperty('display', 'table-row', 'important');
-    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    
+
+    row.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+    });
+
     setTimeout(() => {
         const closeInput = document.getElementById(`close_time_${userId}`);
-        if (closeInput) closeInput.focus();
+
+        if (closeInput) {
+            closeInput.focus();
+        }
+
         togglePartialPriceTimeInputs(userId);
     }, 100);
 };
+
+
+
+function toggleTradeChildren(event, parentId) {
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const parentRow = document.getElementById(`row-${parentId}`);
+
+    if (!parentRow) {
+        console.error('Parent row not found:', parentId);
+        return;
+    }
+
+    const isCollapsed = parentRow.classList.contains('collapsed');
+
+    if (isCollapsed) {
+        expandTrade(parentId);
+    } else {
+        collapseTrade(parentId);
+    }
+}
+
+
+function collapseTrade(parentId) {
+    const parentRow = document.getElementById(`row-${parentId}`);
+
+    if (!parentRow) return;
+
+    parentRow.classList.add('collapsed');
+
+    const children = document.querySelectorAll(
+        `.trade-child[data-parent-id="${parentId}"]`
+    );
+
+    children.forEach(child => {
+        child.classList.add('collapsed');
+    });
+
+    const partialForm = document.getElementById(
+        `partial-form-row-${parentId}`
+    );
+
+    if (partialForm) {
+        partialForm.classList.remove('show');
+        partialForm.style.setProperty('display', 'none', 'important');
+    }
+
+    updateCollapseArrow(parentId, true);
+}
+
+
+
+
+function expandTrade(parentId) {
+    const parentRow = document.getElementById(`row-${parentId}`);
+
+    if (!parentRow) return;
+
+    parentRow.classList.remove('collapsed');
+
+    const children = document.querySelectorAll(
+        `.trade-child[data-parent-id="${parentId}"]`
+    );
+
+    children.forEach(child => {
+        child.classList.remove('collapsed');
+    });
+
+    updateCollapseArrow(parentId, false);
+}
+
+
+function updateCollapseArrow(parentId, collapsed) {
+    const arrow = document.querySelector(
+        `.collapse-arrow[data-parent-id="${parentId}"]`
+    );
+
+    if (!arrow) return;
+
+    const icon = arrow.querySelector('.collapse-arrow-icon');
+
+    if (icon) {
+        icon.textContent = collapsed ? '▸' : '▾';
+    }
+
+    arrow.setAttribute(
+        'aria-label',
+        collapsed ? 'Expand trade' : 'Collapse trade'
+    );
+}
+function hidePartialForm(userId) {
+    const row = document.getElementById(`partial-form-row-${userId}`);
+
+    if (!row) return;
+
+    row.classList.remove('show');
+    row.classList.add('collapsed');
+
+    row.style.setProperty('display', 'none', 'important');
+}
+
+
+
+function initializeTradeCollapseState() {
+    document.querySelectorAll('.trade-parent').forEach(parentRow => {
+
+        const parentId = parentRow.dataset.tradeId;
+        const status = parentRow.dataset.tradeStatus;
+
+        if (!parentId) return;
+
+        const children = document.querySelectorAll(
+            `.trade-child[data-parent-id="${parentId}"]`
+        );
+
+        if (children.length === 0) return;
+
+        if (status === 'OPEN') {
+            expandTrade(parentId);
+        } else {
+            collapseTrade(parentId);
+        }
+    });
+}
+
+
 </script>
 {% endblock %}
