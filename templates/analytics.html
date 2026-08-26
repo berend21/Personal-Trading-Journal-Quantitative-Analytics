@@ -706,6 +706,118 @@
     </div>
 
 </section>
+<section class="analytics-section">
+
+    <div class="section-heading">
+        <div>
+            <h2>Performance by Asset Class</h2>
+            <p>Compare trading performance across different asset classes.</p>
+        </div>
+    </div>
+
+    <div class="stats-panel">
+
+        <div class="stats-columns">
+
+            {% for asset_class, stats in analytics_data.asset_class_stats.items() %}
+
+            <div class="stats-col">
+
+                <div class="stats-type-title">
+                    {{ asset_class }}
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Trades</span>
+                    <span class="value">
+                        {{ stats.trade_count }}
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Closed</span>
+                    <span class="value">
+                        {{ stats.closed_count }}
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Wins</span>
+                    <span class="value positive">
+                        {{ stats.wins }}
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Losses</span>
+                    <span class="value negative">
+                        {{ stats.losses }}
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Breakevens</span>
+                    <span class="value">
+                        {{ stats.breakevens }}
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Win Rate</span>
+                    <span class="value">
+                        {{ "%.1f"|format(stats.win_rate) }}%
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Average R</span>
+
+                    <span class="value
+                        {% if stats.average_rr > 0 %}
+                            positive
+                        {% elif stats.average_rr < 0 %}
+                            negative
+                        {% endif %}
+                    ">
+                        {{ "%.2f"|format(stats.average_rr) }}R
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Total R</span>
+
+                    <span class="value
+                        {% if stats.total_rr > 0 %}
+                            positive
+                        {% elif stats.total_rr < 0 %}
+                            negative
+                        {% endif %}
+                    ">
+                        {{ "%.2f"|format(stats.total_rr) }}R
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Profit Factor</span>
+
+                    <span class="value">
+                        {% if stats.profit_factor is not none %}
+                            {{ "%.2f"|format(stats.profit_factor) }}
+                        {% else %}
+                            N/A
+                        {% endif %}
+                    </span>
+                </div>
+
+            </div>
+
+            {% endfor %}
+
+        </div>
+
+    </div>
+
+</section>
 
 
 <section class="analytics-section">
