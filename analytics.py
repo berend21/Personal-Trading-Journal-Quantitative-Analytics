@@ -7,22 +7,14 @@ import calendar
 import math
 from asset_classifier import get_asset_class, ASSET_CLASSES
 
-
-
-
-
 VALID_PERIODS = {"monthly", "last_month", "yearly", "all"}
+VALID_ATTRIBUTIONS = {"entry", "exit"}
 TRADE_TYPES = ("HTF", "MTF", "LTF")
 DIRECTIONS = ("LONG", "SHORT")
 
 
 def _date_range(period, now):
-    """
-    Return (start_date, end_date) for the selected analytics period.
 
-    The application historically filters trades by open_time, so we preserve
-    that behavior for compatibility.
-    """
     if period == "monthly":
         start = now.replace(
             day=1, hour=0, minute=0, second=0, microsecond=0
@@ -59,20 +51,21 @@ def _date_range(period, now):
     return None, None
 
 
-def _build_filter(period, now):
-    """
-    Build a reusable WHERE fragment and parameter list.
+def _build_filter(period, now, date_field="close_time"):
 
-    Parent trades only are analysed because partial closes are children of
-    the parent and the parent RR is already recalculated from those children.
-    """
+    if date_field not in {"open_time", "close_time"}:
+        raise ValueError(f"Invalid analytics date field: {date_field}")
+
     conditions = ["parent_id IS NULL"]
     params = []
 
     start_date, end_date = _date_range(period, now)
 
     if start_date and end_date:
-        conditions.append("open_time >= ? AND open_time <= ?")
+        conditions.append(
+            f"{date_field} >= ? AND {date_field} <= ?"
+        )
+
         params.extend([
             start_date.strftime("%Y-%m-%d %H:%M:%S"),
             end_date.strftime("%Y-%m-%d %H:%M:%S"),
@@ -101,12 +94,7 @@ def _percentage(numerator, denominator, digits=1):
 
 
 def _calculate_streaks(rr_values):
-    """
-    Calculate maximum winning and losing streaks.
 
-    Breakeven trades reset neither streak because they do not belong to
-    either direction.
-    """
     max_win_streak = 0
     max_loss_streak = 0
 
@@ -133,15 +121,7 @@ def _calculate_streaks(rr_values):
 
 
 def _calculate_drawdown(rr_values):
-    """
-    Calculate drawdown from cumulative R.
 
-    Returns:
-        max_drawdown,
-        max_drawdown_percent_of_peak,
-        equity_curve,
-        drawdown_curve
-    """
     equity = 0.0
     peak = 0.0
     max_drawdown = 0.0
@@ -264,10 +244,36 @@ def analytics():
     if period not in VALID_PERIODS:
         period = "monthly"
 
+    attribution = request.args.get("attribution", "exit")
+
+    if attribution not in VALID_ATTRIBUTIONS:
+        attribution = "exit"
+
     now = datetime.now()
 
     conn = get_db()
-    where_clause, filter_params = _build_filter(period, now)
+
+    performance_where, performance_params = _build_filter(
+        period,
+        now,
+        date_field="close_time",
+    )
+
+    entry_where, entry_params = _build_filter(
+        period,
+        now,
+        date_field="open_time",
+    )
+    entry_count = conn.execute(
+        f"""
+        SELECT COUNT(*)
+        FROM trades
+        WHERE {entry_where}
+        """,
+        entry_params,
+    ).fetchone()[0] or 0
+
+
 
     asset_class_rows = conn.execute(
         f"""
@@ -276,9 +282,9 @@ def analytics():
             status,
             RR
         FROM trades
-        WHERE {where_clause}
+        WHERE {performance_where}
         """,
-        filter_params,
+        performance_params,
     ).fetchall()
 
     asset_class_stats = _calculate_asset_class_stats(
@@ -291,20 +297,49 @@ def analytics():
         f"""
         SELECT COUNT(*)
         FROM trades
-        WHERE {where_clause}
+        WHERE {entry_where}
         """,
-        filter_params,
+        entry_params,
     ).fetchone()[0] or 0
+
 
     open_trades = conn.execute(
         f"""
         SELECT COUNT(*)
         FROM trades
-        WHERE {where_clause}
-          AND status = 'OPEN'
+        WHERE {entry_where}
+        AND status = 'OPEN'
         """,
-        filter_params,
+        entry_params,
     ).fetchone()[0] or 0
+
+    overview_closed_count = conn.execute(
+        f"""
+        SELECT COUNT(*)
+        FROM trades
+        WHERE {entry_where}
+        AND status = 'CLOSED'
+        """,
+        entry_params,
+    ).fetchone()[0] or 0
+    status_rows = conn.execute(
+        f"""
+        SELECT status, COUNT(*) AS count
+        FROM trades
+        WHERE {entry_where}
+        GROUP BY status
+        ORDER BY status
+        """,
+        entry_params,
+    ).fetchall()
+
+    print("ANALYTICS STATUS BREAKDOWN:")
+
+    for row in status_rows:
+        print(row["status"], row["count"])
+
+
+
 
     closed_raw = conn.execute(
         f"""
@@ -371,11 +406,11 @@ def analytics():
             ) AS valid_rr_count
 
         FROM trades
-        WHERE {where_clause}
+        WHERE {performance_where}
           AND status = 'CLOSED'
           AND RR IS NOT NULL
         """,
-        filter_params,
+        performance_params,
     ).fetchone()
 
     closed_count = int(closed_raw["total"] or 0)
@@ -439,7 +474,7 @@ def analytics():
                 ROW_NUMBER() OVER (ORDER BY RR) AS rn,
                 COUNT(*) OVER () AS cnt
             FROM trades
-            WHERE {where_clause}
+            WHERE {performance_where}
               AND status = 'CLOSED'
               AND RR IS NOT NULL
         )
@@ -450,7 +485,7 @@ def analytics():
             CAST((cnt + 2) / 2 AS INTEGER)
         )
         """,
-        filter_params,
+        performance_params,
     ).fetchone()
 
     median_rr = (
@@ -463,13 +498,14 @@ def analytics():
         f"""
         SELECT RR
         FROM trades
-        WHERE {where_clause}
-          AND status = 'CLOSED'
-          AND RR IS NOT NULL
+        WHERE {performance_where}
+        AND status = 'CLOSED'
+        AND RR IS NOT NULL
         ORDER BY close_time ASC, id ASC
         """,
-        filter_params,
+        performance_params,
     ).fetchall()
+
 
     rr_sequence = [
         _safe_float(row["RR"])
@@ -508,14 +544,14 @@ def analytics():
             symbol,
             COUNT(*) AS trade_count
         FROM trades
-        WHERE {where_clause}
+        WHERE {performance_where}
           AND symbol IS NOT NULL
           AND TRIM(symbol) != ''
         GROUP BY symbol
         ORDER BY trade_count DESC, symbol ASC
         LIMIT 1
         """,
-        filter_params,
+        performance_params,
     ).fetchone()
 
     most_used_ticker = (
@@ -558,11 +594,11 @@ def analytics():
             ) AS total_rr
 
         FROM trades
-        WHERE {where_clause}
+        WHERE {performance_where}
         AND sort IN ('LONG', 'SHORT')
         GROUP BY sort
         """,
-        filter_params,
+        performance_params,
     ).fetchall()
 
 
@@ -619,10 +655,10 @@ def analytics():
             type,
             COUNT(*) AS total
         FROM trades
-        WHERE {where_clause}
+        WHERE {performance_where}
         GROUP BY type
         """,
-        filter_params,
+        performance_params,
     ).fetchall()
 
     trades_per_type = {
@@ -670,12 +706,12 @@ def analytics():
 
             FROM trades
 
-            WHERE {where_clause}
+            WHERE {performance_where}
             AND type = ?
             AND status = 'CLOSED'
             AND RR IS NOT NULL
             """,
-            filter_params + [trade_type],
+            performance_params + [trade_type],
         ).fetchone()
 
 
@@ -710,11 +746,11 @@ def analytics():
             sort,
             COUNT(*) AS total
         FROM trades
-        WHERE {where_clause}
+        WHERE {performance_where}
           AND sort IN ('LONG', 'SHORT')
         GROUP BY type, sort
         """,
-        filter_params,
+        performance_params,
     ).fetchall()
 
     for row in rows:
@@ -750,12 +786,12 @@ def analytics():
 
         FROM trades
 
-        WHERE {where_clause}
+        WHERE {performance_where}
           AND status = 'CLOSED'
           AND open_time IS NOT NULL
           AND close_time IS NOT NULL
         """,
-        filter_params,
+        performance_params,
     ).fetchone()
 
     avg_duration_seconds = _safe_float(
@@ -783,7 +819,7 @@ def analytics():
 
         FROM trades
 
-        WHERE {where_clause}
+        WHERE {performance_where}
           AND status = 'CLOSED'
           AND RR IS NOT NULL
           AND close_time IS NOT NULL
@@ -791,7 +827,7 @@ def analytics():
         GROUP BY DATE(close_time)
         ORDER BY trade_date ASC
         """,
-        filter_params,
+        performance_params,
     ).fetchall()
 
     daily_performance = []
@@ -848,7 +884,7 @@ def analytics():
 
         FROM trades
 
-        WHERE {where_clause}
+        WHERE {performance_where}
         AND status = 'CLOSED'
         AND RR IS NOT NULL
         AND symbol IS NOT NULL
@@ -858,7 +894,7 @@ def analytics():
 
         ORDER BY total_rr DESC
         """,
-        filter_params,
+        performance_params,
     ).fetchall()
 
 
@@ -922,7 +958,7 @@ def analytics():
 
             FROM trades
 
-            WHERE {where_clause}
+            WHERE {performance_where}
               AND status = 'CLOSED'
               AND RR IS NOT NULL
               AND close_time IS NOT NULL
@@ -930,7 +966,7 @@ def analytics():
             GROUP BY strftime('%m', close_time)
             ORDER BY month
             """,
-            filter_params,
+            performance_params,
         ).fetchall()
 
         monthly_map = {
@@ -975,29 +1011,30 @@ def analytics():
         f"""
         SELECT COUNT(*)
         FROM trades
-        WHERE {where_clause}
+        WHERE {performance_where}
           AND status = 'CLOSED'
           AND RR IS NULL
         """,
-        filter_params,
+        performance_params,
     ).fetchone()[0] or 0
 
     missing_close_time_count = conn.execute(
         f"""
         SELECT COUNT(*)
         FROM trades
-        WHERE {where_clause}
+        WHERE {performance_where}
           AND status = 'CLOSED'
           AND close_time IS NULL
         """,
-        filter_params,
+        performance_params,
     ).fetchone()[0] or 0
 
 
     analytics_data = {
 
         "total_trades": int(total_trades),
-        "closed_count": int(closed_count),
+        "entry_count" : int(entry_count),
+        "closed_count": int(overview_closed_count),
         "open_count": int(open_trades),
 
         "win_count": int(win_count),
