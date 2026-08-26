@@ -333,7 +333,7 @@ def analytics():
         entry_params,
     ).fetchall()
 
-    print("ANALYTICS STATUS BREAKDOWN:")
+
 
     for row in status_rows:
         print(row["status"], row["count"])
