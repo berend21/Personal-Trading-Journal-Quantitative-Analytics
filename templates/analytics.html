@@ -420,7 +420,12 @@
                 <div class="stats-row">
                     <span class="label">Worst Trade</span>
                     <span class="value negative">
-                        {{ "%.2f"|format(analytics_data.lowest_rr) }}R
+                        {% if analytics_data.lowest_rr is not none %}
+                            {{ "%.2f"|format(analytics_data.lowest_rr) }}R
+                        {% else %}
+                            —
+                        {% endif %}
+
                     </span>
                 </div>
 
