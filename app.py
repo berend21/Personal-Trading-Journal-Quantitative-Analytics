@@ -1,6 +1,3 @@
-# STS Trading Journal - Built by a legend in 2025
-# Lightning fast, faster than these other tradesystems
-
 from flask import render_template, request, redirect, url_for, flash, session, send_file, jsonify, g
 import sqlite3
 import os
@@ -20,10 +17,9 @@ from extensions import app
 
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-
 from dotenv import load_dotenv
-load_dotenv()
 
+load_dotenv()
 
 csrf = CSRFProtect(app)
 
@@ -33,15 +29,14 @@ handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s [
 app.logger.addHandler(handler)
 app.logger.setLevel(logging.DEBUG)  
 
-
 logging.basicConfig(handlers=[handler], level=logging.DEBUG)
 
-from config import *
-
-PERMANENT_SESSION_LIFETIME = timedelta(hours=24)
+import config
+app.config.from_object(config)
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
 
 ##Import modules
-from database import *
+from database import init_db, get_db, close_db
 app.teardown_appcontext(close_db)
 from login import *
 from spot import *
@@ -77,77 +72,33 @@ def handle_csrf_error(e):
     
 @app.after_request
 def add_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
-    if request.path.startswith('/static/uploads/knowledge/') and request.path.endswith('.pdf'):
-        response.headers['X-Content-Type-Options'] = 'nosniff'
-        response.headers['Content-Security-Policy'] = (
-            "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; "
-            "style-src 'self' 'unsafe-inline' cdn.jsdelivr.net fonts.googleapis.com fonts.gstatic.com cdnjs.cloudflare.com; "
-            "img-src 'self' data: blob: https:; "
-            "font-src 'self' data: fonts.gstatic.com fonts.googleapis.com cdnjs.cloudflare.com cdn.jsdelivr.net; "
-            "connect-src 'self'; "
-            "frame-ancestors 'self';"
-        )
-        return response
-    
-    response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['X-Frame-Options'] = 'DENY'
-    response.headers['X-XSS-Protection'] = '1; mode=block'
-    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-    response.headers['Content-Security-Policy'] = (
+    response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; "
-        "style-src 'self' 'unsafe-inline' cdn.jsdelivr.net fonts.googleapis.com fonts.gstatic.com cdnjs.cloudflare.com; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' "
+            "https://cdn.jsdelivr.net "
+            "https://fonts.googleapis.com "
+            "https://cdnjs.cloudflare.com; "
         "img-src 'self' data: blob: https:; "
-        "font-src 'self' data: fonts.gstatic.com fonts.googleapis.com cdnjs.cloudflare.com cdn.jsdelivr.net;"
-        "connect-src 'self';" 
+        "font-src 'self' data: https:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self'; "
+        "form-action 'self';"
     )
-    return response
 
+    return response
 
 KNOWLEDGE_UPLOAD_FOLDER = 'static/uploads/knowledge'
 os.makedirs(KNOWLEDGE_UPLOAD_FOLDER, exist_ok=True)
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'mp4', 'webm', 'ogg'}
 
-
-
 MAX_REASON_LEN    = 4000
 MAX_FEEDBACK_LEN  = 8000
-
-
-def migrate_gallery_table():
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row  
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='gallery'")
-    if not cursor.fetchone():
-        print("Gallery table does not exist yet. Skipping migration.")
-        conn.close()
-        return
- 
-    cursor.execute("SELECT id, image_path FROM gallery")
-    rows = cursor.fetchall()
-    updated = False
-    for row in rows:
-        image_path = row['image_path']
-        if image_path:  
-            try:
-                json.loads(image_path)  
-            except json.JSONDecodeError:
-                json_paths = json.dumps([image_path])
-                cursor.execute("UPDATE gallery SET image_path = ? WHERE id = ?", (json_paths, row['id']))
-                updated = True
-    
-    conn.commit()
-    conn.close()
-    if updated:
-        print("Gallery table migrated to support multi-images in image_path.")
-    else:
-        print("Gallery table already supports multi-images.")
-    
-
 
 def parse_time(s):
     if not s:
@@ -196,11 +147,6 @@ def compress_image(file, max_width=2000, quality=100):  #
         file.seek(0)  
         return file  
 
-
-
-
-
-
 @app.route('/rules', methods=['GET', 'POST'])
 @login_required
 def rules():
@@ -213,7 +159,6 @@ def toggle_theme():
     current = session.get('theme', 'light')
     session['theme'] = 'dark' if current == 'light' else 'light'
     return redirect(request.referrer or url_for('index'))
-
 
 
 def smart_price(value):
@@ -248,7 +193,6 @@ def smart_price(value):
     except Exception:
         return str(value)
 
-
 app.jinja_env.filters['smart_price'] = smart_price
 
 def get_date_filter(start_date=None, end_date=None):
@@ -265,10 +209,9 @@ def get_date_filter(start_date=None, end_date=None):
         return "", {}
 
 
-
 if __name__ == '__main__':
     init_db()
     app.run(host='127.0.0.1',  
         port=5000,
-        debug=True,
+        debug=False,
         use_reloader=False)
