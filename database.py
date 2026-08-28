@@ -7,8 +7,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 DATABASE = os.path.join(DATA_DIR, 'data.db')
 os.makedirs(DATA_DIR, exist_ok=True)
-print("DATABASE USED BY FLASK:", DATABASE)
-print("DATABASE EXISTS:", os.path.exists(DATABASE))
+
 
 def init_db():
     conn = sqlite3.connect(DATABASE)
@@ -201,15 +200,20 @@ def init_db():
     
 
         conn.commit()
+
+    except Exception:
+        conn.rollback()
+        raise
+
     finally:
         conn.close()
    
 def get_db():
     if 'db' not in g:
-        g.db = sqlite3.connect(DATABASE, timeout=30.0, check_same_thread=False)
+        g.db = sqlite3.connect(DATABASE, timeout=30.0)
         g.db.row_factory = sqlite3.Row
         g.db.execute("PRAGMA journal_mode=WAL;")
-        g.db.execute("PRAGMA synchronous=NORMAL;")
+        g.db.execute("PRAGMA synchronous=FULL;")
         g.db.execute("PRAGMA cache_size=-64000;")   # 64MB cache
         g.db.execute("PRAGMA foreign_keys=ON;")
     return g.db
