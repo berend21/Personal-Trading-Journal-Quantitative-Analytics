@@ -1,7 +1,6 @@
 import sqlite3
 import json
 from flask import g
-from werkzeug.security import generate_password_hash
 import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -200,12 +199,6 @@ def init_db():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_rules_category ON trading_rules(category)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_rules_pinned ON trading_rules(pinned)")
     
-        user_count = cursor.execute('SELECT COUNT(*) FROM users').fetchone()[0]
-        if user_count == 0:
-            default_email = 'admin@admin.com'
-            default_password = '12345678'
-            hashed = generate_password_hash(default_password)
-            cursor.execute('INSERT INTO users (email, password) VALUES (?,?)', (default_email, hashed))
 
         conn.commit()
     finally:
