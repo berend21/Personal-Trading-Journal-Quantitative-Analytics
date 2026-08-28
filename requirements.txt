@@ -6,6 +6,4 @@ flask-limiter
 flask-wtf
 pandas
 pillow
-xlsxwriter
-configparser
 email_validator
