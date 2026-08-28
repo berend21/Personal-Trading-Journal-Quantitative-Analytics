@@ -21,6 +21,9 @@ from extensions import app
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
+from dotenv import load_dotenv
+load_dotenv()
+
 
 csrf = CSRFProtect(app)
 
