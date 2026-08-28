@@ -1,14 +1,25 @@
-from flask import render_template, request, flash, redirect, url_for, jsonify
+from flask import render_template, request, flash, redirect, url_for, jsonify, abort
 from extensions import app
 from database import get_db
 from login import login_required
-from werkzeug.utils import secure_filename
+from werkzeug.utils import secure_filename, safe_join
+
 import os
 import json
 import math
-from uuid import uuid4
 
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+import secrets
+from PIL import Image, UnidentifiedImageError
+
+ALLOWED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp'}
+MAX_IMAGE_WIDTH = 10000
+MAX_IMAGE_HEIGHT = 10000
+MAX_IMAGE_PIXELS = 25_000_000
+
+Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
+MAX_IMAGE_SIZE = 20 * 1024 * 1024
+
+
 
 
 @app.route('/gallery', methods=['GET', 'POST'])
@@ -22,24 +33,75 @@ def gallery():
         if action == 'add':
             title = request.form.get('title', '').strip()
             description = request.form.get('description', '').strip()
-            images = request.files.getlist('images')
+
+            if len(title) > 200:
+                flash('Title is too long', 'error')
+                return redirect(url_for('gallery'))
+
+            if len(description) > 5000:
+                flash('Description is too long', 'error')
+                return redirect(url_for('gallery'))
+
+            images = [
+                image
+                for image in request.files.getlist('images')
+                if image.filename
+            ]
+
             
             if not title:
                 flash('Title is required', 'error')
                 return redirect(url_for('gallery'))  
             
-            if not images or any(not allowed_file(img.filename) for img in images if img.filename):
-                flash('Invalid image file(s)', 'error')
-                return redirect(url_for('gallery')) 
-            
+
+            if not images:
+                flash('At least one image required', 'error')
+                return redirect(url_for('gallery'))
+
+                        
             image_paths = []
+
             for image in images:
-                if image.filename == '': continue
-                filename = secure_filename(image.filename)
-                filename = f"gallery_{uuid4().hex}_{filename}"
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                image.save(filepath)
+                extension = get_safe_extension(image.filename)
+
+                if extension is None:
+                    flash('Invalid image file', 'error')
+                    return redirect(url_for('gallery'))
+
+                if image.content_length and image.content_length > MAX_IMAGE_SIZE:
+                    flash('Image is too large', 'error')
+                    return redirect(url_for('gallery'))
+
+
+                if not validate_image(image, extension):
+                    flash('Invalid or unsafe image file', 'error')
+                    return redirect(url_for('gallery'))
+
+                filename = secrets.token_hex(32) + extension
+
+                filepath = safe_join(
+                    app.config['UPLOAD_FOLDER'],
+                    filename
+                )
+
+                if filepath is None:
+                    app.logger.warning(
+                        "Unsafe upload path rejected"
+                    )
+                    flash('Invalid image path', 'error')
+                    return redirect(url_for('gallery'))
+
+                try:
+                    image.save(filepath)
+                except OSError:
+                    app.logger.exception(
+                        "Failed to save gallery image"
+                    )
+                    flash('Failed to save image', 'error')
+                    return redirect(url_for('gallery'))
+
                 image_paths.append(filename)
+
             
             if not image_paths:
                 flash('At least one image required', 'error')
@@ -56,15 +118,28 @@ def gallery():
             img_id = request.form.get('id')
             title = request.form.get('title', '').strip()
             description = request.form.get('description', '').strip()
+
+            if len(title) > 200:
+                flash('Title is too long', 'error')
+                return redirect(url_for('gallery'))
+
+            if len(description) > 5000:
+                flash('Description is too long', 'error')
+                return redirect(url_for('gallery'))
+
             if img_id and title:
-                conn.execute('UPDATE gallery SET title=?, description=? WHERE id=?',
-                             (title, description, img_id))
+                conn.execute(
+                    'UPDATE gallery SET title=?, description=? WHERE id=?',
+                    (title, description, img_id)
+                )
                 conn.commit()
+
                 flash('Post updated successfully!', 'success')
                 return redirect(url_for('gallery'))
-            else:
-                flash('Invalid edit data', 'error')
-                return redirect(url_for('gallery'))  
+
+            flash('Invalid edit data', 'error')
+            return redirect(url_for('gallery'))
+
         
         elif action == 'delete':
             img_id = request.form.get('id')
@@ -77,9 +152,29 @@ def gallery():
                         paths = [img['image_path']]
                     for path in paths:
                         try:
-                            os.remove(os.path.join(app.config['UPLOAD_FOLDER'], path))
-                        except OSError:
+                            filepath = safe_join(
+                                app.config['UPLOAD_FOLDER'],
+                                path
+                            )
+
+                            if filepath is None:
+                                app.logger.warning(
+                                    "Unsafe gallery file path rejected"
+                                )
+
+                                continue
+
+                            os.remove(filepath)
+
+                        except FileNotFoundError:
                             pass
+
+                        except OSError:
+                            app.logger.exception(
+                                "Failed to delete gallery file"
+                            )
+
+
                 conn.execute('DELETE FROM gallery WHERE id=?', (img_id,))
                 conn.commit()
                 flash('Post deleted successfully!', 'success')
@@ -93,7 +188,7 @@ def gallery():
 
     page = request.args.get('page', 1, type=int)
     search = request.args.get('search', '').strip()
-    sort_order = request.args.get('sort', 'desc')  # 'desc' (newest) or 'asc' (oldest)
+    sort_order = request.args.get('sort', 'desc')  
     
     per_page = 24
     offset = (page - 1) * per_page
@@ -117,13 +212,13 @@ def gallery():
     total_pages = math.ceil(total_posts / per_page)
 
     if sort_order == 'asc':
-        order_by = "ORDER BY created_at ASC"  # Oldest first
+        order_by = "ORDER BY created_at ASC"  
     else:
-        order_by = "ORDER BY created_at DESC"  # Newest first (default)
+        order_by = "ORDER BY created_at DESC"  
 
     # 
     query = f"""
-        SELECT * FROM gallery {where_clause}
+        SELECT id, title, description, image_path, created_at FROM gallery {where_clause}
         {order_by}
         LIMIT ? OFFSET ?
     """
@@ -163,10 +258,69 @@ def gallery():
                         total_posts=total_posts,      
                         total_images=total_images    
     )
-def allowed_file(filename):
-    if not filename or '.' not in filename:
-        return False
 
-    extension = filename.rsplit('.', 1)[1].lower()
-    return extension in ALLOWED_EXTENSIONS
+
+def get_safe_extension(filename):
+    filename = secure_filename(filename or '')
+
+    if not filename:
+        return None
+
+    _, extension = os.path.splitext(filename)
+    extension = extension.lower()
+
+    if extension not in ALLOWED_EXTENSIONS:
+        return None
+
+    return extension
+
+
+def validate_image(file, expected_extension):
+    try:
+        image = Image.open(file)
+
+        image.verify()
+
+        file.seek(0)
+
+        image = Image.open(file)
+
+        width, height = image.size
+
+        if width > MAX_IMAGE_WIDTH:
+            return False
+
+        if height > MAX_IMAGE_HEIGHT:
+            return False
+
+        if width * height > MAX_IMAGE_PIXELS:
+            return False
+
+        expected_formats = {
+            '.jpg': {'JPEG'},
+            '.jpeg': {'JPEG'},
+            '.png': {'PNG'},
+            '.webp': {'WEBP'},
+        }
+
+        allowed_formats = expected_formats.get(
+            expected_extension,
+            set()
+        )
+
+        if image.format not in allowed_formats:
+            return False
+
+        file.seek(0)
+
+        return True
+
+    except (
+        UnidentifiedImageError,
+        Image.DecompressionBombError,
+        OSError,
+        ValueError,
+    ):
+        file.seek(0)
+        return False
 
