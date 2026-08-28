@@ -1,721 +1,871 @@
-{% extends "base.html" %}
-{% block extra_head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='gallery.css') }}">
-{% endblock %}
-{% block title %}Gallery{% endblock %}
-{% block content %}
-<div class="gallery-container">
-    <div class="gallery-header-alt">
-        <h1>Knowledge Gallery</h1>
-        <div class="page-counter">
-            <div class="counter-badge">
-                <span class="counter-posts">{{ total_posts }}</span>
-                <span class="counter-label">Posts</span>
-            </div>
-            <div class="counter-badge">
-                <span class="counter-images">{{ total_images }}</span>
-                <span class="counter-label">Images</span>
-            </div>
-        </div>
-        <button class="btn-add-new" onclick="toggleUploadForm()">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
-            Add Post
-        </button>
-    </div>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+html { font-family: 'Inter', system-ui, sans-serif; }
+@supports (font-variation-settings: normal) {
+  html { font-family: 'Inter var', system-ui, sans-serif; }
+}
+
+:root {
+  --bg: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  --card: rgba(255, 255, 255, 0.92);
+  --text: #1a1a1a;
+  --primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --accent: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  --success: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  --border: rgba(255, 255, 255, 0.25);
+  --shadow-light: 0 8px 32px rgba(31, 38, 135, 0.15);
+  --shadow-hover: 0 20px 60px rgba(31, 38, 135, 0.25);
+}
 
 
+.gallery-container {
+    max-width: 1450px;
+    margin: 0 auto;
+    padding: 10px 24px 80px 24px;
+}
 
-    <div class="controls-section">
-        <div class="sort-section">
-            <label for="sortSelect" class="sort-label">Sort:</label>
-            <select id="sortSelect" class="sort-select">
-                <option value="desc" {{ 'selected' if sort_order == 'desc' else '' }}>Newest</option>
-                <option value="asc" {{ 'selected' if sort_order == 'asc' else '' }}>Oldest</option>
-            </select>
-        </div>
-        <div class="search-section">
-            <div class="search-wrapper">
-                <input type="text" placeholder="Search by title or keywords..." value="{{ search }}" id="searchInput" autocomplete="off">
-                <span class="search-icon" id="searchIcon">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="11" cy="11" r="8"></circle>
-                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                    </svg>
-                </span>
-            </div>
-        </div>
-    </div>
-    <div class="upload-section" id="uploadSection">
-        <div class="upload-card">
-            <h2>Add New Post</h2>
-            <form method="POST" enctype="multipart/form-data">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="action" value="add">
-                <div class="form-group">
-                    <label for="title">Title *</label>
-                    <input type="text" name="title" id="title" required>
-                </div>
-                <div class="form-group">
-                    <label for="description">Description / Keywords</label>
-                    <textarea name="description" id="description" rows="3"></textarea>
-                </div>
-                <div class="form-group">
-                    <label for="images">Select Image(s) * (Hold Ctrl/Shift for multiple)</label>
-                    <div class="file-upload">
-                        <input type="file" name="images" id="images" required accept="image/*" multiple onchange="previewImages(event)">
-                        <label for="images" class="file-label">Choose Images</label>
-                    </div>
-                    <div id="imagePreview" class="image-preview multiple"></div>
-                </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn-primary">Upload</button>
-                    <button type="button" class="btn-cancel" onclick="toggleUploadForm()">Cancel</button>
-                </div>
-            </form>
-        </div>
-    </div>
+.gallery-header-alt {
+    position: relative;
+    text-align: center;
+    margin-bottom: 5px;
+}
 
-    <div class="gallery-grid" id="galleryGrid">
-        {% for img in images %}
-        <div class="gallery-item" onclick="openModal({{ img.id }})">
-            <div class="image-wrapper">
-                {% if img.image_path and img.image_path|length > 0 %}
-                <img src="{{ url_for('static', filename='uploads/' + img.image_path[0]) }}" alt="{{ img.title }}" loading="lazy">
-                {% if img.image_path|length > 1 %}
-                <span class="multi-indicator">{{ img.image_path|length }} images</span>
-                {% endif %}
-                <div class="image-overlay">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                        <circle cx="12" cy="12" r="3"></circle>
-                    </svg>
-                </div>
-                {% endif %}
-            </div>
-            <div class="image-info">
-                <h3>{{ img.title }}</h3>
-                {% if img.description %}
-                <p>{{ img.description|truncate(50) }}</p>
-                {% endif %}
-                <span class="image-date">{{ img.created_at[:10] }}</span>
-            </div>
-        </div>
-        {% else %}
-        <div class="no-images">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                <polyline points="21 15 16 10 5 21"></polyline>
-            </svg>
-            <p>No images found</p>
-        </div>
-        {% endfor %}
-    </div>
-    {% if has_more %}
-    <div class="load-more-container" style="text-align: center; margin: 50px 0;">
-        <button id="loadMoreBtn" class="btn-primary" style="padding: 14px 32px; font-size: 1.1rem;">
-            Load More
-        </button>
-        <div id="loading" style="display: none; margin-top: 20px; color: #666;">
-            <p>Loading more images...</p>
-        </div>
-    </div>
-    {% endif %}
-</div>
-
-<div id="imageModal" class="modal">
-    <div class="modal-content">
-        <span class="modal-close" onclick="closeModal()">&times;</span>
-        <button class="modal-zoom-btn" onclick="toggleZoom()">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                <line x1="11" y1="8" x2="11" y2="14"></line>
-                <line x1="8" y1="11" x2="14" y2="11"></line>
-            </svg>
-        </button>
-        
-        <div class="modal-image-side" id="imageSide">
-            <div class="carousel">
-                <button class="carousel-prev" onclick="changeImage(-1)">&#10094;</button>
-                <img id="modalImage" src="" alt="">
-                <button class="carousel-next" onclick="changeImage(1)">&#10095;</button>
-                <div class="carousel-indicators" id="carouselIndicators"></div>
-            </div>
-        </div>
-        
-        <div class="modal-info-side">
-            <h2 id="modalTitle"></h2>
-            <div class="modal-meta">
-                <span class="meta-date" id="modalDate"></span>
-            </div>
-            <p id="modalDescription"></p>
-            
-            <div class="modal-actions">
-                <button class="btn-edit" onclick="toggleEditMode()">Edit</button>
-                <form method="POST" style="display: inline;" onsubmit="return confirm('Delete this post?');">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="action" value="delete">
-                    <input type="hidden" name="id" id="deleteId">
-                    <button type="submit" class="btn-delete">Delete</button>
-                </form>
-            </div>
-    
-            <form method="POST" id="editForm" class="edit-form">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="action" value="edit">
-                <input type="hidden" name="id" id="editId">
-                <div class="form-group">
-                    <label>Title</label>
-                    <input type="text" name="title" id="editTitle" required>
-                </div>
-                <div class="form-group">
-                    <label>Description</label>
-                    <textarea name="description" id="editDescription" rows="3"></textarea>
-                </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn-primary">Save</button>
-                    <button type="button" class="btn-cancel" onclick="toggleEditMode()">Cancel</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+#modalDescription {
+    white-space: pre-line;
+}
 
 
-<script>
-let isZoomed = false;
-let isDragging = false;
-let startX, startY, scrollLeft, scrollTop;
-let currentImageIndex = 0;
-let currentPost = null;
-window.allImages = {{ images|tojson|safe }} || []; 
+.gallery-header-alt h1 {
+    font-size: 2.5rem;
+    font-weight: 600;
+    color: var(--text-primary, #1a1a1a);
+    margin: 0 0 20px 0;
+}
 
-let uploadedFiles = [];
-let dragData = null;
+.btn-add-new {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #4CAF50, #45a049);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 500;
+    box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(10px);
+}
 
-document.addEventListener('DOMContentLoaded', function() {
+.btn-add-new:hover {
+    background: linear-gradient(135deg, #45a049, #3d8b40);
 
-    const previewContainer = document.getElementById('imagePreview');
-    if (previewContainer) {
-        previewContainer.addEventListener('dragover', handleDragOver);
-        previewContainer.addEventListener('dragleave', handleDragLeave);
-        previewContainer.addEventListener('drop', handleDrop);
+    box-shadow: 0 8px 25px rgba(76, 175, 80, 0.4);
+}
+
+.btn-add-new:active {
+    transform: translateY(-1px);
+}
+
+.controls-section {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    margin: 24px 0 32px;
+    flex-wrap: wrap;
+}
+
+.sort-section {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 14px;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+    backdrop-filter: blur(10px);
+    width: auto;
+}
+
+.sort-label {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #334155;
+    margin: 0;
+    white-space: nowrap;
+    letter-spacing: 0.01em;
+}
+
+.sort-select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background: #ffffff;
+    color: #111827;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 9px 40px 9px 12px;
+    font-size: 0.95rem;
+    font-weight: 400;
+    cursor: pointer;
+    min-width: 140px;
+    outline: none;
+    transition: all 0.2s ease;
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23334155' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+.sort-select:hover {
+    border-color: #94a3b8;
+    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+}
+
+.sort-select:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.14);
+}
+
+.search-section {
+    margin-bottom: 0;
+    display: flex;
+    justify-content: flex-start;
+    flex: 1;
+    min-width: 280px;
+    padding-left:210px;
+}
+
+.search-wrapper {
+    position: relative;
+    max-width: 500px;
+    width: 100%;
+    margin: 0;
+}
+
+@media (max-width: 768px) {
+    .controls-section {
+        flex-direction: column;
+        align-items: stretch;
     }
 
-
-    const loadMoreBtn = document.getElementById('loadMoreBtn');
-    if (loadMoreBtn) {
-        loadMoreBtn.addEventListener('click', loadMoreImages);
-        console.log('✅ Load More button attached!');
+    .sort-section {
+        display: inline-flex;
+        justify-content: flex-start;
+        width: auto;
     }
 
-    const searchInput = document.getElementById('searchInput');
-    const searchIcon = document.getElementById('searchIcon');
-    if (searchInput && searchIcon) {
-        function updateSearchIcon() {
-            if (searchInput.value.trim()) {
-                searchIcon.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>`;
-                searchIcon.classList.add('clear');
-            } else {
-                searchIcon.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>`;
-                searchIcon.classList.remove('clear');
-            }
-        }
-        
-        updateSearchIcon();
-        
-        searchIcon.addEventListener('click', function() {
-            if (searchInput.value.trim()) {
-                searchInput.value = '';
-                updateSearchIcon();
-                const url = new URL(window.location);
-                url.searchParams.delete('search');
-                url.searchParams.set('page', 1);
-                window.location.href = url.toString();
-            }
-        });
-        
-        let searchTimeout;
-        searchInput.addEventListener('input', function() {
-            clearTimeout(searchTimeout);
-            updateSearchIcon();
-            searchTimeout = setTimeout(() => {
-                const searchTerm = this.value.trim();
-                const url = new URL(window.location);
-                if (searchTerm) {
-                    url.searchParams.set('search', searchTerm);
-                } else {
-                    url.searchParams.delete('search');
-                }
-                url.searchParams.set('page', 1);
-                window.location.href = url.toString();
-            }, 500);
-        });
+    .sort-select {
+        min-width: 140px;
     }
-});
 
-// 🔥 SORT SELECTOR FUNCTIONALITY
-const sortSelect = document.getElementById('sortSelect');
-if (sortSelect) {
-    sortSelect.addEventListener('change', function() {
-        // Update URL with new sort order, reset to page 1
-        const url = new URL(window.location);
-        url.searchParams.set('sort', this.value);
-        url.searchParams.set('page', '1');
-        window.location.href = url.toString();
-    });
-}
+    .search-section {
+        width: 100%;
+    }
 
-function toggleUploadForm() {
-    const section = document.getElementById('uploadSection');
-    const isVisible = section.style.display === 'block';
-    section.style.display = isVisible ? 'none' : 'block';
-    
-    if (!isVisible) {
-        resetUploadForm();
+    .search-wrapper {
+        max-width: 100%;
     }
 }
-
-function previewImages(event) {
-    const files = Array.from(event.target.files);
-    if (files.length === 0) return;
-    
-    uploadedFiles = files;
-    renderPreview();
+.search-wrapper input {
+    font-size: 16px; 
+    padding: 16px 50px 16px 20px; 
+}
+@media (max-width: 768px) {
+    .search-wrapper { width: 100%; margin: 0 0 20px 0; }
+    .search-wrapper input { font-size: 16px; padding: 18px 50px 18px 20px; }
 }
 
-function renderPreview() {
-    const preview = document.getElementById('imagePreview');
-    preview.innerHTML = '';
-    
-    uploadedFiles.forEach((file, index) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const previewItem = createPreviewItem(file, e.target.result, index);
-            preview.appendChild(previewItem);
-        };
-        reader.readAsDataURL(file);
-    });
+.search-section input {
+    max-width: 500px;
+    padding: 12px 50px 12px 20px;
+    width: 100%;
+    padding: 12px 20px;
+    border: 2px solid #e0e0e0;
+    border-radius: 50px;
+    font-size: 1rem;
+    outline: none;
+}
+.search-icon {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: #999;
+    transition: all 0.2s ease;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.search-icon:hover {
+    color: #4CAF50;
 }
 
-function createPreviewItem(file, dataUrl, index) {
-    const container = document.createElement('div');
-    container.className = 'preview-item';
-    container.draggable = true;
-    container.dataset.index = index;
-    
-    const img = document.createElement('img');
-    img.src = dataUrl;
-    img.alt = file.name;
-    
-    const orderNum = document.createElement('div');
-    orderNum.className = 'order-number';
-    orderNum.textContent = index + 1;
-    
-    const removeBtn = document.createElement('button');
-    removeBtn.className = 'remove-preview';
-    removeBtn.type = 'button';
-    removeBtn.innerHTML = '×';
-    removeBtn.onclick = (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        removePreviewItem(parseInt(container.dataset.index));
-    };
-    
-    container.appendChild(img);
-    container.appendChild(orderNum);
-    container.appendChild(removeBtn);
-
-    container.addEventListener('dragstart', handleDragStart);
-    container.addEventListener('dragend', handleDragEnd);
-    
-    return container;
+.search-icon.clear:hover {
+    color: #f44336;
 }
 
-function removePreviewItem(index) {
-    uploadedFiles.splice(index, 1);
-    renderPreview();
+.search-section input:focus {
+    border-color: #4CAF50;
 }
 
-function handleDragStart(e) {
-    const target = e.currentTarget;
-    dragData = {
-        index: parseInt(target.dataset.index),
-        element: target
-    };
+.upload-section {
+    margin-bottom: 40px;
+    display: none;
     
-    target.classList.add('dragging');
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', dragData.index.toString());
+}
+#loading {
+    display: none;
+    margin-top: 20px;
+    color: #666;
 }
 
-function handleDragEnd(e) {
-    if (dragData?.element) {
-        dragData.element.classList.remove('dragging');
+#loading::after {
+    content: '';
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #4CAF50;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-left: 10px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+.page-counter {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    gap: 12px;
+    z-index: 100;
+}
+
+.counter-badge {
+    background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85));
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.4);
+    border-radius: 16px;
+    padding: 12px 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 70px;
+    transition: all 0.3s ease;
+}
+
+.counter-badge:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+}
+
+.counter-posts {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #3b82f6;
+    line-height: 1;
+}
+
+.counter-images {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #10b981;
+    line-height: 1;
+}
+
+.counter-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #6b7280;
+    margin-top: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+
+.dark .counter-badge {
+    background: linear-gradient(135deg, rgba(31,41,55,0.95), rgba(17,24,39,0.95));
+    border-color: rgba(75,85,99,0.5);
+    color: #f9fafb;
+}
+
+.dark .counter-label {
+    color: #d1d5db;
+}
+
+@media (max-width: 768px) {
+    .page-counter {
+        top: 15px;
+        right: 15px;
+        gap: 8px;
     }
-    dragData = null;
-
-    document.querySelectorAll('.preview-item').forEach(item => {
-        item.classList.remove('drag-over');
-    });
-}
-
-function handleDragOver(e) {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
     
-    const target = e.currentTarget;
-    if (dragData && dragData.index !== parseInt(target.dataset.index)) {
-        target.classList.add('drag-over');
+    .counter-badge {
+        padding: 10px 12px;
+        min-width: 60px;
+    }
+    
+    .counter-posts, .counter-images {
+        font-size: 1.2rem;
     }
 }
 
-function handleDragLeave(e) {
-    e.currentTarget.classList.remove('drag-over');
+.upload-card {
+    background: white;
+    border-radius: 20px;
+    padding: 40px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+    max-width: 600px;
+    margin: 0 auto;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(20px);
+}
+.upload-card h2 {
+    text-align: center;
+    margin-bottom: 15px;
+    font-size: 1.8rem;
+    background: black;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
-function handleDrop(e) {
-    e.preventDefault();
-    
-    if (!dragData) return;
-    
-    const target = e.currentTarget;
-    const fromIndex = dragData.index;
-    const toIndex = parseInt(target.dataset.index);
-    
-    if (fromIndex !== toIndex) {
-        const [movedFile] = uploadedFiles.splice(fromIndex, 1);
-        uploadedFiles.splice(toIndex, 0, movedFile);
+.form-group {
+    margin-bottom: 20px;
+}
 
-        renderPreview();
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #555;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: 10px 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 1rem;
+}
+
+.file-upload {
+    position: relative;
+}
+
+.file-upload input[type="file"] {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 30px;
+    cursor: pointer;
+}
+
+.file-label {
+    display: block;
+    padding: 20px;
+    background: linear-gradient(135deg, #f8f9ff, #f0f2ff);
+    border: 2px dashed #4CAF50;
+    border-radius: 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+.file-label:hover {
+    background: linear-gradient(135deg, #e8f5e8, #f0f9f0);
+    border-color: #45a049;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px rgba(76, 175, 80, 0.15);
+}
+
+.file-label::before {
+    content: '📁';
+    font-size: 2rem;
+    display: block;
+    margin-bottom: 5px;
+}
+
+.image-preview {
+    margin-top: 15px;
+}
+
+.image-preview img {
+    max-width: 100%;
+    max-height: 200px;
+    border-radius: 8px;
+}
+
+.gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 25px;
+    margin-top: 30px;
+}
+
+.gallery-item {
+    background: white;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    position: relative;
+}
+
+.gallery-item:hover {
+    transform: translateY(-12px) scale(1.03);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.18);
+}
+
+
+
+.gallery-item:hover .image-wrapper::before {
+    opacity: 1;
+}
+.image-wrapper::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(0,0,0,0) 60%, rgba(0,0,0,0.7));
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 1;
+}
+
+.image-wrapper {
+    position: relative;
+    padding-bottom: 66.67%;
+    overflow: hidden;
+    background: #f5f5f5;
+}
+
+.image-wrapper img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.image-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.gallery-item:hover .image-overlay {
+    opacity: 1;
+}
+
+.image-overlay svg {
+    color: white;
+    width: 40px;
+    height: 40px;
+}
+
+.image-info {
+    padding: 15px;
+}
+
+.image-info h3 {
+    margin: 0 0 8px 0;
+    font-size: 1.1rem;
+    color: #333;
+    font-weight: 600;
+}
+
+.image-info p {
+    margin: 0 0 10px 0;
+    color: #666;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.image-date {
+    font-size: 0.85rem;
+    color: #999;
+}
+
+.no-images {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 60px 20px;
+    color: #999;
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    
+}
+
+.modal-content {
+    position: relative;
+    margin: 2% auto;
+    width: 95%;
+    height: 95%;
+    display: flex;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.modal-image-side {
+    flex: 1;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+}
+
+.modal-image-side img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    transition: transform 0.3s ease;
+    display: block;
+    margin: auto;
+}
+
+.modal-image-side.zoomed {
+    overflow: auto !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+    padding: 0;
+}
+
+.modal-image-side.zoomed img {
+    transform: scale(1.1);
+    cursor: grab;
+    max-width: none !important;
+    max-height: none !important;
+    min-width: 250% !important;  
+    min-height: 250% !important; 
+    margin: 0;
+    position: relative;
+    transform-origin: top left; 
+}
+
+.modal-image-side.zoomed img:active {
+    cursor: grabbing;
+}
+
+.modal-info-side {
+    flex: 0 0 350px;
+    padding: 30px;
+    overflow-y: auto;
+    background: white;
+}
+
+.modal-close {
+    position: absolute;
+    top: 15px;
+    right: 25px;
+    color: white;
+    font-size: 35px;
+    font-weight: bold;
+    cursor: pointer;
+    z-index: 1001;
+    background: rgba(0,0,0,0.5);
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-zoom-btn {
+    position: absolute;
+    top: 20px;
+    right: 90px;           
+    width: 56px;
+    height: 56px;
+    background: rgba(255, 255, 255, 0.25) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    color: white !important;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 1002;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+}
+
+.modal-zoom-btn:hover {
+    background: rgba(255, 255, 255, 0.4) !important;
+    transform: scale(1.15);
+    border-color: white;
+}
+
+.modal-info-side h2 {
+    margin: 0 0 15px 0;
+    font-size: 1.8rem;
+    color: #333;
+}
+
+.modal-info-side p {
+    color: #666;
+    line-height: 1.5;
+    margin-bottom: 20px;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.btn-edit, .btn-delete {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+.btn-edit {
+    background: #2196F3;
+    color: white;
+}
+
+.btn-delete {
+    background: #f44336;
+    color: white;
+}
+
+.edit-form {
+    border-top: 1px solid #eee;
+    padding-top: 20px;
+    display: none;
+}
+
+.form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.btn-primary {
+    background: #4CAF50;
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn-cancel {
+    background: #f5f5f5;
+    color: #666;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.multi-indicator {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: rgba(0,0,0,0.7);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 12px;
     }
-
-    document.querySelectorAll('.preview-item').forEach(item => {
-        item.classList.remove('drag-over');
-    });
+.image-preview.multiple img {
+        max-width: 100px;
+        max-height: 100px;
+        margin: 5px;
+    }
+.carousel {
+        position: relative;
+        width: 100%;
+        height: 100%;
+    }
+.carousel img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+    }
+.carousel-prev, .carousel-next {
+    position: absolute !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    background: rgba(0, 0, 0, 0.7) !important;
+    color: white !important;
+    border: none !important;
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 50% !important;
+    cursor: pointer !important;
+    font-size: 18px !important;
+    font-weight: bold !important;
+    z-index: 100 !important; /* Higher z-index */
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
+    opacity: 0.8 !important;
 }
 
-
-function resetUploadForm() {
-    uploadedFiles = [];
-    document.getElementById('imagePreview').innerHTML = '';
-    document.getElementById('images').value = '';
-    document.getElementById('title').value = '';
-    document.getElementById('description').value = '';
+.carousel-prev:hover, .carousel-next:hover {
+    background: rgba(0,0,0,0.9);
+    transform: translateY(-50%) scale(1.1);
 }
 
-function findImage(id) {
-    // First try to find in window.allImages
-    let img = window.allImages.find(img => img.id == id);
-    
-    // If not found, try to find the gallery item and extract data
-    if (!img) {
-        const galleryItem = document.querySelector(`[data-post-id="${id}"], .gallery-item[onclick*="openModal(${id})"]`);
-        if (galleryItem) {
-            // Fallback: you might need to store more data or refetch
-            console.warn('Image data not found in cache for ID:', id);
-        }
+.carousel-prev { left: 20px; }
+.carousel-next { right: 20px; }
+
+.carousel-prev[style*="display: none"],
+.carousel-next[style*="display: none"] {
+    display: none !important;
+}
+
+@media (max-width: 768px) {
+    .modal-content {
+        flex-direction: column;
+        width: 98%;
+        height: 98%;
     }
     
-    return img;
-}
-
-function openModal(id) {
-    const img = findImage(id);
-    if (!img) return;
-    
-    currentPost = img;
-    currentImageIndex = 0;
-    
-    document.getElementById('modalTitle').textContent = img.title;
-    document.getElementById('modalDate').textContent = img.created_at ? 
-        new Date(img.created_at).toLocaleDateString('en-US', { 
-            year: 'numeric', month: 'short', day: 'numeric' 
-        }) : 'Unknown date';
-    document.getElementById('modalDescription').innerHTML = (img.description || '').replace(/\n/g, '<br>');
-    document.getElementById('deleteId').value = id;
-    document.getElementById('editId').value = id;
-    document.getElementById('editTitle').value = img.title;
-    document.getElementById('editDescription').value = img.description || '';
-    
-    document.getElementById('imageModal').style.display = 'block';
-    document.body.style.overflow = 'hidden';
-    updateCarousel();
-    resetZoom();
-}
-
-function updateCarousel() {
-    if (!currentPost) return;
-    const paths = currentPost.image_path || [];
-    if (paths.length === 0) return;
-    
-    document.getElementById('modalImage').src = '/static/uploads/' + paths[currentImageIndex];
-    
-    const prevBtn = document.querySelector('.carousel-prev');
-    const nextBtn = document.querySelector('.carousel-next');
-    
-    // Always show buttons if there are multiple images
-    if (paths.length > 1) {
-        prevBtn.style.display = 'flex';
-        nextBtn.style.display = 'flex';
-    } else {
-        prevBtn.style.display = 'none';
-        nextBtn.style.display = 'none';
-    }
-    updateIndicators();
-}
-
-function updateIndicators() {
-    const container = document.getElementById('carouselIndicators');
-    const paths = currentPost.image_path || [];
-    container.innerHTML = '';
-    
-    if (paths.length <= 1) return;
-    
-    paths.forEach((_, index) => {
-        const dot = document.createElement('div');
-        dot.className = 'carousel-dot' + (index === currentImageIndex ? ' active' : '');
-        dot.onclick = () => goToImage(index);
-        container.appendChild(dot);
-    });
-}
-
-function goToImage(index) {
-    if (!currentPost) return;
-    const paths = currentPost.image_path || [];
-    currentImageIndex = Math.max(0, Math.min(index, paths.length - 1));
-    updateCarousel();
-    resetZoom();
-}
-
-function changeImage(direction) {
-    if (!currentPost) return;
-    const paths = currentPost.image_path || [];
-    if (paths.length <= 1) return;
-    
-    currentImageIndex = (currentImageIndex + direction + paths.length) % paths.length;
-    updateCarousel();
-    resetZoom();
-}
-
-function closeModal() {
-    document.getElementById('imageModal').style.display = 'none';
-    document.body.style.overflow = 'auto';
-    document.getElementById('editForm').style.display = 'none';
-    resetZoom();
-}
-
-function resetZoom() {
-    isZoomed = false;
-    const imageSide = document.getElementById('imageSide');
-    imageSide.classList.remove('zoomed');
-    imageSide.scrollLeft = 0;
-    imageSide.scrollTop = 0;
-}
-
-function toggleZoom() {
-    const imageSide = document.getElementById('imageSide');
-    const img = document.getElementById('modalImage');
-    isZoomed = !isZoomed;
-    
-    if (isZoomed) {
-        imageSide.classList.add('zoomed');
-        setTimeout(() => {
-            const rect = imageSide.getBoundingClientRect();
-            const scale = 2.5;
-            const centerX = (img.naturalWidth * scale - rect.width) / 2;
-            const centerY = (img.naturalHeight * scale - rect.height) / 2;
-            imageSide.scrollLeft = Math.max(0, centerX);
-            imageSide.scrollTop = Math.max(0, centerY);
-        }, 100);
-    } else {
-        imageSide.classList.remove('zoomed');
+    .modal-info-side {
+        flex: 0 0 auto;
+        max-height: 40%;
     }
 }
 
-function toggleEditMode() {
-    const form = document.getElementById('editForm');
-    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+#imagePreview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 15px;
+    padding: 10px;
+    background: rgba(0,0,0,0.15);
+    border-radius: 8px;
+    min-height: 100px;
 }
 
-document.addEventListener('keydown', (e) => {
-    if (document.getElementById('imageModal').style.display === 'block') {
-        switch(e.key) {
-            case 'ArrowLeft': changeImage(-1); break;
-            case 'ArrowRight': changeImage(1); break;
-            case 'Escape': closeModal(); break;
-        }
-    }
-});
-
-document.getElementById('imageModal').addEventListener('click', (e) => {
-    if (e.target.id === 'imageModal') closeModal();
-});
-
-const imageSide = document.getElementById('imageSide');
-imageSide.addEventListener('mousedown', (e) => {
-    if (!isZoomed) return;
-    isDragging = true;
-    startX = e.clientX;
-    startY = e.clientY;
-    scrollLeft = imageSide.scrollLeft;
-    scrollTop = imageSide.scrollTop;
-    imageSide.style.cursor = 'grabbing';
-    e.preventDefault();
-});
-
-document.addEventListener('mousemove', (e) => {
-    if (!isDragging || !isZoomed) return;
-    const x = e.clientX - startX;
-    const y = e.clientY - startY;
-    imageSide.scrollLeft = scrollLeft - x;
-    imageSide.scrollTop = scrollTop - y;
-});
-
-document.addEventListener('mouseup', () => {
-    if (isDragging) {
-        isDragging = false;
-        if (isZoomed) imageSide.style.cursor = 'grab';
-    }
-});
-
-
-async function loadMoreImages() {
-    console.log('🔥 Load More clicked!');
-    
-    const loadMoreBtn = document.getElementById('loadMoreBtn');
-    const loading = document.getElementById('loading');
-    const galleryGrid = document.getElementById('galleryGrid');
-    
-    if (!loadMoreBtn || !galleryGrid) {
-        console.error('❌ Required elements not found!');
-        return;
-    }
-    
-    const url = new URL(window.location);
-    let currentPage = parseInt(url.searchParams.get('page') || '1');
-    let nextPage = currentPage + 1;
-    
-    console.log('📄 Fetching page:', nextPage);
-    
-    url.searchParams.set('page', nextPage);
-    
-    loadMoreBtn.style.display = 'none';
-    loading.style.display = 'block';
-    
-    try {
-        const response = await fetch(url.toString(), {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        console.log('📦 Images loaded:', data.images?.length || 0);
-        
-        if (data.images && data.images.length > 0) {
-            // Preload images for better performance
-            const imagePromises = data.images.map(img => {
-                if (img.image_path && img.image_path.length > 0) {
-                    return new Promise((resolve) => {
-                        const imgElement = new Image();
-                        imgElement.onload = imgElement.onerror = resolve;
-                        imgElement.src = `/static/uploads/${img.image_path[0]}`;
-                    });
-                }
-                return Promise.resolve();
-            });
-            
-            // Wait for images to start loading
-            await Promise.all(imagePromises);
-            
-            data.images.forEach(img => {
-                const galleryItem = createGalleryItem(img);
-                galleryGrid.appendChild(galleryItem);
-            });
-            
-            window.allImages = window.allImages.concat(data.images);
-            
-            // Update counters if provided
-            if (data.total_posts !== undefined && data.total_images !== undefined) {
-                updateCounter(data.total_posts, data.total_images);
-            }
-            
-            if (!data.has_more) {
-                loadMoreBtn.remove();
-            } else {
-                loadMoreBtn.dataset.nextPage = nextPage.toString();
-                loadMoreBtn.style.display = 'inline-block';
-            }
-        } else {
-            loadMoreBtn.remove();
-        }
-    } catch (error) {
-        console.error('💥 Error loading more images:', error);
-        loadMoreBtn.style.display = 'inline-block';
-    } finally {
-        loading.style.display = 'none';
-    }
+.preview-item {
+    position: relative;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    cursor: move;
+    user-select: none;
 }
 
-function createGalleryItem(img) {
-    const galleryItem = document.createElement('div');
-    galleryItem.className = 'gallery-item';
-    galleryItem.dataset.postId = img.id; // Store ID as data attribute
-    
-    const imageCount = img.image_path ? img.image_path.length : 0;
-    const firstImage = img.image_path && img.image_path.length > 0 ? img.image_path[0] : '';
-    
-    galleryItem.innerHTML = `
-        <div class="image-wrapper">
-            ${firstImage ? `
-                <img src="/static/uploads/${firstImage}" alt="${img.title || ''}" loading="lazy">
-                ${imageCount > 1 ? `<span class="multi-indicator">${imageCount} images</span>` : ''}
-                <div class="image-overlay">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                        <circle cx="12" cy="12" r="3"></circle>
-                    </svg>
-                </div>
-            ` : ''}
-        </div>
-        <div class="image-info">
-            <h3>${img.title || ''}</h3>
-            ${img.description ? `<p>${img.description.length > 50 ? img.description.substring(0, 50) + '...' : img.description}</p>` : ''}
-            <span class="image-date">${img.created_at ? img.created_at.substring(0, 10) : ''}</span>
-        </div>
-    `;
-
-    galleryItem.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        openModal(parseInt(this.dataset.postId));
-    });
-    
-    return galleryItem;
+.preview-item:hover {
+    border-color: #007bff;
 }
 
-
-function updateCounter(posts, images) {
-    const statPosts = document.querySelector('.stat-posts');
-    const statImages = document.querySelector('.stat-images');
-    if (statPosts) statPosts.textContent = `${posts} Posts`;
-    if (statImages) statImages.textContent = `${images} Images`;
+.preview-item.drag-over {
+    border-color: #007bff !important;
+    box-shadow: 0 4px 12px rgba(0,123,255,0.3);
 }
 
+.preview-item:active {
+    transform: scale(0.98);
+}
 
+.remove-preview {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 24px;
+    height: 24px;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
 
-</script>
-{% endblock %}
+.preview-item:hover .remove-preview {
+    opacity: 1;
+}
+
+.order-number {
+    position: absolute;
+    bottom: 4px;
+    left: 4px;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.modal-meta {
+    display: flex; align-items: center; gap: 8px;
+    margin: 8px 0 20px 0; padding: 8px 0;
+    border-bottom: 1px solid #eee; font-size: 0.9rem;
+}
+
+.meta-date {
+    color: #6b7280; font-weight: 500;
+    display: flex; align-items: center; gap: 6px;
+}
+
+.meta-date::before {
+    content: '📅'; font-size: 1rem;
+}
+
+.dark .meta-date { color: #9ca3af; }
+.dark .modal-meta { border-bottom-color: #374151; }
+@media (max-width: 768px) {
+    .modal-meta { 
+        flex-direction: column; align-items: flex-start; gap: 4px;
+        padding: 12px 0; margin: 12px 0 16px 0;
+    }
+    .meta-date { font-size: 0.95rem; }
+}
