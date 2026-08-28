@@ -29,6 +29,11 @@ html { font-family: 'Inter', system-ui, sans-serif; }
     margin-bottom: 5px;
 }
 
+#modalDescription {
+    white-space: pre-line;
+}
+
+
 .gallery-header-alt h1 {
     font-size: 2.5rem;
     font-weight: 600;
