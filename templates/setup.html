@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>Initial Setup</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='login.css') }}">
+</head>
+<body>
+    <div class="wrapper"></div>
+
+    <div class="login-container">
+
+        <h2>Create Account</h2>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="{{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <div id="flash-container"></div>
+
+        <form method="post">
+            {{ form.hidden_tag() }}
+
+            {{ form.email(
+                placeholder="Email",
+                autofocus=True,
+                autocomplete="username"
+            ) }}
+
+            <div class="input-group">
+
+                {{ form.password(
+                    placeholder="Password (minimum 12 characters)",
+                    id="password",
+                    autocomplete="new-password"
+                ) }}
+
+                <span class="toggle-password" onclick="togglePassword()">
+                    <svg id="eyeIcon" viewBox="0 0 24 24" stroke-width="2">
+                        <path
+                            class="eye-shape"
+                            d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12Z"
+                        />
+                        <circle
+                            class="eye-ball"
+                            cx="12"
+                            cy="12"
+                            r="3"
+                        />
+                        <line
+                            class="eye-slash"
+                            x1="4"
+                            y1="4"
+                            x2="20"
+                            y2="20"
+                            stroke="#888"
+                            stroke-width="2"
+                            style="display:none"
+                        />
+                    </svg>
+                </span>
+
+            </div>
+
+            <button type="submit">Create Account</button>
+
+        </form>
+
+        <div class="form-footer">
+            <span>
+                First-time setup
+            </span>
+        </div>
+
+    </div>
+
+    <script>
+        function togglePassword() {
+            const passwordInput = document.getElementById('password');
+            const eyeIcon = document.getElementById('eyeIcon');
+
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+
+                eyeIcon.innerHTML = `
+                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12Z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                    <line
+                        x1="4"
+                        y1="4"
+                        x2="20"
+                        y2="20"
+                        stroke="#888"
+                        stroke-width="2"
+                    />
+                `;
+            } else {
+                passwordInput.type = 'password';
+
+                eyeIcon.innerHTML = `
+                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12Z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                `;
+            }
+        }
+    </script>
+
+</body>
+</html>
