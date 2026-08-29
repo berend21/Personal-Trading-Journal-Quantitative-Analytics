@@ -1,4 +1,4 @@
-from flask import render_template, request, flash, redirect, url_for, jsonify
+from flask import render_template, request, flash, redirect, url_for, jsonify, session
 from extensions import app
 from database import get_db
 from login import login_required
@@ -7,7 +7,11 @@ import os
 import time
 from werkzeug.utils import secure_filename
 from PIL import Image
+import math
 
+
+MAX_REASON_LEN = 4000
+MAX_FEEDBACK_LEN = 8000
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
@@ -183,6 +187,14 @@ def index():
 def add_trade():
     
     symbol = request.form.get('symbol', '').upper()
+    if not symbol:
+        flash('Symbol is required.', 'error')
+        return redirect(url_for('index'))
+
+    if len(symbol) > 15:
+        flash('Symbol cannot exceed 15 characters.', 'error')
+        return redirect(url_for('index'))
+    
     open_time = request.form.get('open_time', '').replace('T', ' ').strip()
     close_time = request.form.get('close_time', '').replace('T', ' ').strip()
     type = request.form.get('type', '')
@@ -193,21 +205,119 @@ def add_trade():
     risk = request.form.get('risk')
     SL = request.form.get('SL')
     TP = request.form.get('TP')
-    reason = request.form.get('reason')
-    feedback = request.form.get('feedback')
 
-    open_dt = parse_time(open_time)
-    close_dt = parse_time(close_time)
-    if open_dt and close_dt and close_dt < open_dt:
-        flash('Close time cannot be before open time.', 'error')
+    reason = request.form.get('reason', '').strip()
+    feedback = request.form.get('feedback', '').strip()
+
+
+    try:
+        open_price = float(open_price) if open_price else None
+        close_price = float(close_price) if close_price else None
+        risk = float(risk) if risk else None
+        SL = float(SL) if SL else None
+        TP = float(TP) if TP else None
+    except (TypeError, ValueError):
+        flash('Invalid numeric value.', 'error')
         return redirect(url_for('index'))
 
-    open_price = float(open_price) if open_price else None
-    close_price= float(close_price) if close_price else None
-    risk = float(risk) if risk else None
+    if status not in ('OPEN', 'CLOSED'):
+        flash('Invalid trade status.', 'error')
+        return redirect(url_for('index'))
+
+    if sort not in ('LONG', 'SHORT'):
+        flash('Invalid trade direction.', 'error')
+        return redirect(url_for('index'))
+
+    if type not in ('HTF', 'MTF', 'LTF'):
+        flash('Invalid trade type.', 'error')
+        return redirect(url_for('index'))
+
+
+    if open_price is not None and SL is not None:
+        if sort == 'LONG' and SL >= open_price:
+            flash('For a LONG trade, SL must be below the open price.', 'error')
+            return redirect(url_for('index'))
+
+        if sort == 'SHORT' and SL <= open_price:
+            flash('For a SHORT trade, SL must be above the open price.', 'error')
+            return redirect(url_for('index'))
+
+    if open_price is not None and TP is not None:
+        if sort == 'LONG' and TP <= open_price:
+            flash('For a LONG trade, TP must be above the open price.', 'error')
+            return redirect(url_for('index'))
+
+        if sort == 'SHORT' and TP >= open_price:
+            flash('For a SHORT trade, TP must be below the open price.', 'error')
+            return redirect(url_for('index'))
+
+    if SL is not None and TP is not None:
+
+        if sort == 'LONG' and SL >= TP:
+            flash('For a LONG trade, SL must be below TP.', 'error')
+            return redirect(url_for('index'))
+
+        if sort == 'SHORT' and SL <= TP:
+            flash('For a SHORT trade, SL must be above TP.', 'error')
+            return redirect(url_for('index'))
+
+    if reason and len(reason) > MAX_REASON_LEN:
+        flash(f'Reason is too long. Maximum {MAX_REASON_LEN} characters.', 'error')
+        return redirect(url_for('index'))
+
+    if len(feedback) > MAX_FEEDBACK_LEN:
+        flash(f'Feedback cannot exceed {MAX_FEEDBACK_LEN} characters.', 'error')
+        return redirect(url_for('index'))
+
+        open_dt = parse_time(open_time)
+        close_dt = parse_time(close_time)
+
+        if open_time and open_dt is None:
+            flash('Invalid open time.', 'error')
+            return redirect(url_for('index'))
+
+        if close_time and close_dt is None:
+            flash('Invalid close time.', 'error')
+            return redirect(url_for('index'))
+
+        if open_dt and close_dt and close_dt < open_dt:
+            flash('Close time cannot be before open time.', 'error')
+            return redirect(url_for('index'))
+
+
+    try:
+        open_price = parse_float(open_price, 'Open price')
+        close_price = parse_float(close_price, 'Close price')
+        risk = parse_float(risk, 'Risk')
+        SL = parse_float(SL, 'Stop loss')
+        TP = parse_float(TP, 'Take profit')
+    except ValueError as e:
+        flash(str(e), 'error')
+        return redirect(url_for('index'))
     initial_risk = risk
-    SL = float(SL) if SL else None
-    TP = float(TP) if TP else None
+
+    if risk is None:
+        flash('Risk is required.', 'error')
+        return redirect(url_for('index'))
+
+    if risk <= 0:
+        flash('Risk must be greater than 0.', 'error')
+        return redirect(url_for('index'))
+
+
+    if status == 'CLOSED':
+        if close_price is None:
+            flash('A CLOSED trade must have a close price.', 'error')
+            return redirect(url_for('index'))
+
+        if not close_time:
+            flash('A CLOSED trade must have a close time.', 'error')
+            return redirect(url_for('index'))
+
+    if status == 'OPEN':
+        close_price = None
+        close_time = None
+
     
     RR = calculate_r_multiple(sort, open_price, close_price, SL)
 
@@ -233,40 +343,176 @@ def edit_trade(user_id):
         if current is None:
             return {'success': False, 'message': 'Trade not found'}
 
-        symbol = request.form.get('symbol', '').upper()
-        open_time = request.form.get('open_time', '')
-        close_time = request.form.get('close_time', '')
-        type = request.form.get('type', '')
+        symbol = request.form.get('symbol', '').strip().upper()
+        open_time = request.form.get('open_time', '').replace('T', ' ').strip()
+        close_time = request.form.get('close_time', '').replace('T', ' ').strip()
+        type = request.form.get('type', '').strip()
         status = request.form.get('status', '').upper()
         sort = request.form.get('sort', '').upper()
+
         open_price = request.form.get('open_price')
         close_price = request.form.get('close_price')
         risk = request.form.get('risk')
         SL = request.form.get('SL')
         TP = request.form.get('TP')
-        reason = request.form.get('reason')
-        feedback = request.form.get('feedback')
+
+        reason = request.form.get('reason', '').strip()
+        feedback = request.form.get('feedback', '').strip()
+
+        if status and status not in ('OPEN', 'CLOSED'):
+            return {'success': False, 'message': 'Invalid trade status.'}
+
+        if sort and sort not in ('LONG', 'SHORT'):
+            return {'success': False, 'message': 'Invalid trade direction.'}
+
+
 
 
         symbol = symbol if symbol else current['symbol']
+        if not symbol:
+            return {'success': False, 'message': 'Symbol is required.'}
+
+        if len(symbol) > 15:
+            return {
+                'success': False,
+                'message': 'Symbol cannot exceed 15 characters.'
+            }
+
         open_time = open_time if open_time else current['open_time']
         close_time = close_time if close_time else current['close_time']
         type = type if type else current['type']
         status = status if status else current['status']
         sort = sort if sort else current['sort']
-        reason = reason if reason else current['reason']
-        feedback = feedback if feedback else current['feedback']
+        if 'reason' not in request.form:
+            reason = current['reason']
 
-        open_price = float(open_price) if open_price else current['open_price']
-        close_price = float(close_price) if close_price else current['close_price']
-        risk = float(risk) if risk else current['risk']
-        SL = float(SL) if SL else current['SL']
-        TP = float(TP) if TP else current['TP']
+        if 'feedback' not in request.form:
+            feedback = current['feedback']
+        try:
+            if 'open_price' in request.form:
+                open_price = parse_float(open_price, 'Open price')
+            else:
+                open_price = current['open_price']
+        
+            if 'close_price' in request.form:
+                close_price = parse_float(close_price, 'Close price')
+            else:
+                close_price = current['close_price']
+        
+            if 'risk' in request.form:
+                risk = parse_float(risk, 'Risk')
+            else:
+                risk = current['risk']
+        
+            if 'SL' in request.form:
+                SL = parse_float(SL, 'Stop loss')
+            else:
+                SL = current['SL']
+        
+            if 'TP' in request.form:
+                TP = parse_float(TP, 'Take profit')
+            else:
+                TP = current['TP']
+        
+        except ValueError as e:
+            return {'success': False, 'message': str(e)}
+
+        if risk is None:
+            flash('Risk is required.', 'error')
+            return redirect(url_for('index'))
+
+        if risk <= 0:
+            flash('Risk must be greater than 0.', 'error')
+            return redirect(url_for('index'))
+
+
+        if open_price is not None and SL is not None:
+
+            if sort == 'LONG' and SL >= open_price:
+                return {
+                    'success': False,
+                    'message': 'For a LONG trade, SL must be below the open price.'
+                }
+
+            if sort == 'SHORT' and SL <= open_price:
+                return {
+                    'success': False,
+                    'message': 'For a SHORT trade, SL must be above the open price.'
+                }
+        if open_price is not None and TP is not None:
+
+            if sort == 'LONG' and TP <= open_price:
+                return {
+                    'success': False,
+                    'message': 'For a LONG trade, TP must be above the open price.'
+                }
+
+            if sort == 'SHORT' and TP >= open_price:
+                return {
+                    'success': False,
+                    'message': 'For a SHORT trade, TP must be below the open price.'
+                }
+
+
+        if SL is not None and TP is not None:
+
+            if sort == 'LONG' and SL >= TP:
+                return {
+                    'success': False,
+                    'message': 'For a LONG trade, SL must be below TP.'
+                }
+            if sort == 'SHORT' and SL <= TP:
+                return {
+                    'success': False,
+                    'message': 'For a SHORT trade, SL must be above TP.'
+                }
+        if status == 'CLOSED':
+            if close_price is None:
+                return {
+                    'success': False,
+                    'message': 'A CLOSED trade must have a close price.'
+                }
+
+            if not close_time:
+                return {
+                    'success': False,
+                    'message': 'A CLOSED trade must have a close time.'
+                }
+
+        if status == 'OPEN':
+            close_price = None
+            close_time = None
+
+        if len(reason) > MAX_REASON_LEN:
+            return {
+                'success': False,
+                'message': f'Reason is too long. Maximum {MAX_REASON_LEN} characters.'
+            }
+
+        if len(feedback) > MAX_FEEDBACK_LEN:
+            return {
+                'success': False,
+                'message': f'Feedback is too long. Maximum {MAX_FEEDBACK_LEN} characters.'
+            }
+
+
+
 
         open_dt = parse_time(open_time)
         close_dt = parse_time(close_time)
+
+        if open_time and open_dt is None:
+            return {'success': False, 'message': 'Invalid open time.'}
+
+        if close_time and close_dt is None:
+            return {'success': False, 'message': 'Invalid close time.'}
+
         if open_dt and close_dt and close_dt < open_dt:
-            return {'success': False, 'message': 'Close time cannot be before open time.'}
+            return {
+                'success': False,
+                'message': 'Close time cannot be before open time.'
+            }
+
 
         
         if current['parent_id']:
@@ -371,12 +617,65 @@ def partial_close_inline(parent_id):
             flash('Parent trade not found', 'error')
             return redirect(url_for('index'))
 
+        sort = parent_trade['sort']
+
+        if sort not in ('LONG', 'SHORT'):
+            flash('Invalid parent trade direction.', 'error')
+            return redirect(url_for('index'))
+
+        parent_open_price = parent_trade['open_price']
+        parent_sl = parent_trade['SL']
+        parent_tp = parent_trade['TP']
+
+        if parent_open_price is not None and parent_sl is not None:
+            if sort == 'LONG' and parent_sl >= parent_open_price:
+                flash('Parent LONG trade has an invalid SL.', 'error')
+                return redirect(url_for('index'))
+
+            if sort == 'SHORT' and parent_sl <= parent_open_price:
+                flash('Parent SHORT trade has an invalid SL.', 'error')
+                return redirect(url_for('index'))
+
+        if parent_open_price is not None and parent_tp is not None:
+            if sort == 'LONG' and parent_tp <= parent_open_price:
+                flash('Parent LONG trade has an invalid TP.', 'error')
+                return redirect(url_for('index'))
+
+            if sort == 'SHORT' and parent_tp >= parent_open_price:
+                flash('Parent SHORT trade has an invalid TP.', 'error')
+                return redirect(url_for('index'))
+
+        if parent_sl is not None and parent_tp is not None:
+            if sort == 'LONG' and parent_sl >= parent_tp:
+                flash('Parent LONG trade has an invalid SL/TP relationship.', 'error')
+                return redirect(url_for('index'))
+
+            if sort == 'SHORT' and parent_sl <= parent_tp:
+                flash('Parent SHORT trade has an invalid SL/TP relationship.', 'error')
+                return redirect(url_for('index'))
+
+
         risk = request.form.get('risk')
         status = request.form.get('status', '').upper()
         risk = float(risk) if risk else None
 
         reason = request.form.get('reason', '')
         feedback = request.form.get('feedback', '')
+
+        if len(reason) > MAX_REASON_LEN:
+            flash(
+                f'Reason is too long. Maximum {MAX_REASON_LEN} characters.',
+                'error'
+            )
+            return redirect(url_for('index'))
+
+        if len(feedback) > MAX_FEEDBACK_LEN:
+            flash(
+                f'Feedback is too long. Maximum {MAX_FEEDBACK_LEN} characters.',
+                'error'
+            )
+            return redirect(url_for('index'))
+
 
         if status not in ('OPEN', 'CLOSED'):
             flash('Invalid status', 'error')
@@ -391,26 +690,55 @@ def partial_close_inline(parent_id):
             open_time = request.form.get('open_time')
             open_price = float(open_price) if open_price else None
             close_price = None
-            close_time = None
 
             if open_price is None:
                 flash('Open price is required for OPEN partial', 'error')
                 return redirect(url_for('index'))
+            open_dt = parse_time(open_time)
+
+            if open_time and open_dt is None:
+                flash('Invalid open time.', 'error')
+                return redirect(url_for('index'))
+
 
             RR = 0.0
             new_parent_status = parent_trade['status']
             parent_close_time = parent_trade['close_time']
 
         else:
-            close_price = request.form.get('close_price')
+            close_price_raw = request.form.get('close_price')
             close_time = request.form.get('close_time')
-            close_price = float(close_price) if close_price else None
+
+            try:
+                close_price = parse_float(close_price_raw, 'Close price')
+            except ValueError as e:
+                flash(str(e), 'error')
+                return redirect(url_for('index'))
+
             open_price = parent_trade['open_price']
             open_time = None
 
             if close_price is None:
                 flash('Close price is required for CLOSED partial', 'error')
                 return redirect(url_for('index'))
+
+            close_dt = parse_time(close_time)
+
+            if not close_time:
+                flash('Close time is required for CLOSED partial', 'error')
+                return redirect(url_for('index'))
+
+            if close_dt is None:
+                flash('Invalid close time.', 'error')
+                return redirect(url_for('index'))
+
+            parent_open_dt = parse_time(parent_trade['open_time'])
+
+            if parent_open_dt and close_dt < parent_open_dt:
+                flash('Partial close time cannot be before the parent open time.', 'error')
+                return redirect(url_for('index'))
+
+
 
             RR = calculate_r_multiple(
                 parent_trade['sort'],
@@ -497,9 +825,15 @@ def partial_close_inline_spot(parent_id):
             flash('Parent spot trade not found', 'error')
             return redirect(url_for('spot'))
 
-        risk = request.form.get('risk')
+        risk_raw = request.form.get('risk')
         status = request.form.get('status', '').upper()
-        risk = float(risk) if risk else None
+
+        try:
+            risk = parse_float(risk_raw, 'Risk')
+        except ValueError as e:
+            flash(str(e), 'error')
+            return redirect(url_for('index'))
+
 
         reason = request.form.get('reason', '')
         feedback = request.form.get('feedback', '')
@@ -522,6 +856,25 @@ def partial_close_inline_spot(parent_id):
             if open_price is None:
                 flash('Open price is required for OPEN partial', 'error')
                 return redirect(url_for('spot'))
+
+            if parent_sl is not None:
+                if sort == 'LONG' and parent_sl >= open_price:
+                    flash('For a LONG partial, SL must be below the open price.', 'error')
+                    return redirect(url_for('index'))
+
+                if sort == 'SHORT' and parent_sl <= open_price:
+                    flash('For a SHORT partial, SL must be above the open price.', 'error')
+                    return redirect(url_for('index'))
+
+            if parent_tp is not None:
+                if sort == 'LONG' and parent_tp <= open_price:
+                    flash('For a LONG partial, TP must be above the open price.', 'error')
+                    return redirect(url_for('index'))
+
+                if sort == 'SHORT' and parent_tp >= open_price:
+                    flash('For a SHORT partial, TP must be below the open price.', 'error')
+                    return redirect(url_for('index'))
+
 
             pct_gain = None
             new_parent_risk = (parent_trade['risk'] if parent_trade['risk'] is not None else 0.0) + risk
@@ -780,6 +1133,22 @@ def parse_time(s):
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def parse_float(value, field_name):
+    if value is None:
+        return None
+
+    if isinstance(value, str):
+        value = value.strip()
+        if value == '':
+            return None
+
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        raise ValueError(f'{field_name} must be a valid number.')
+
+
 
 def recalculate_parent(conn, parent_id):
     parent = conn.execute(
