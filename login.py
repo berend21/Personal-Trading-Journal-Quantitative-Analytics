@@ -11,7 +11,7 @@ from database import get_db
 
 class LoginForm(FlaskForm):
     email = StringField('Email', validators=[DataRequired(), Email()])
-    password = PasswordField('Password', validators=[DataRequired(), Length(min=7)])
+    password = PasswordField('Password', validators=[DataRequired(), Length(min=12)])
     submit = SubmitField('Login')
 
 class SetupForm(FlaskForm):
@@ -27,6 +27,7 @@ class SetupForm(FlaskForm):
 
 @app.route('/setup', methods=['GET', 'POST'])
 @limiter.limit("5 per minute")
+@limiter.limit("20 per hour")
 def setup():
     conn = get_db()
 
@@ -78,7 +79,7 @@ def login():
             session['username'] = email
             session.permanent = True
 
-            return redirect(url_for('index'))
+            return redirect(url_for('dashboard'))
 
         flash('Invalid credentials', 'error')
 
