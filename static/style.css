@@ -355,11 +355,39 @@ tbody tr:hover {
 body.dark-theme tbody tr:hover {
   background-color: #23272b !important;
 }
+.trade-parent.open-trade {
+    box-shadow: inset 3px 0 0 rgba(56, 203, 137, 0.75);
+}
+/* Subtle indication that a trade is currently open */
+.trade-parent.open-trade {
+    box-shadow: inset 3px 0 0 #38CB89;
+}
+
+.status-pill {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.status-open {
+    color: #38CB89;
+    background: rgba(56, 203, 137, 0.10);
+    border: 1px solid rgba(56, 203, 137, 0.25);
+}
+
+.status-closed {
+    color: #888;
+    background: rgba(128, 128, 128, 0.08);
+    border: 1px solid rgba(128, 128, 128, 0.15);
+}
 
 
 table{
     width:100%;
-    max-width: 1300px;
+    max-width: 1400px;
     border-collapse: separate;
     font-size:0.97em;
     margin: 0 auto;
@@ -412,6 +440,7 @@ tbody tr:hover{
 }
 .long-text, .positive_pnl, .positive_R{
     color: #38CB89;
+
 }
 .short-text, .negative_pnl, .negative_R{
     color: #FD6E4E;
@@ -1504,11 +1533,9 @@ button:active::after { animation: ripple 1s; opacity: 1; }
     }
 }
 
-/* ========================================
-   MOBILE TABLE → PERFECT BLOCKS (REPLACE)
-   ======================================== */
+
 @media (max-width: 768px) {
-    /* FORCE ALL TABLES to blocks - bulletproof */
+
     table,
     table#trades-table,
     table.dataTable,
@@ -1569,6 +1596,7 @@ button:active::after { animation: ripple 1s; opacity: 1; }
         border-bottom: none !important;
         padding-bottom: 0 !important;
     }
+
     
     /* Label + Value system */
     table td:not(.action-cell)::before {
@@ -1909,6 +1937,13 @@ body.dark-theme .nav-user:hover {
     }
 }
 
+.trade-row {
+    transition: background-color .15s ease;
+}
+
+.trade-row:hover {
+    background: rgba(255,255,255,.025);
+}
 
 
 .trade-id-cell {
@@ -2102,4 +2137,124 @@ body.dark-theme .collapse-arrow:hover {
         margin-right: 6px;
         flex-shrink: 0;
     }
+}
+
+
+.top-bar {
+    max-width: 900px;
+    min-height: 72px;
+    padding: 0.75rem 1.25rem;
+    margin: 1rem auto 1.5rem;
+    border-radius: 16px;
+    gap: 1rem;
+}
+
+.search-filter-form select {
+    padding: 11px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.6);
+    font-size: 0.95rem;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+}
+
+.search-bar {
+    max-width: 440px;
+}
+
+.search-bar input {
+    padding: 11px 40px 11px 16px;
+    font-size: 0.92rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+}
+
+.monthly-rr-badge {
+    padding: 9px 16px;
+    border-radius: 12px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+    white-space: nowrap;
+}
+
+.monthly-rr-badge .label {
+    font-size: 0.82rem;
+}
+
+.monthly-rr-badge .value {
+    font-size: 1.15rem;
+}
+
+.nav-links a {
+    position: relative;
+    color: var(--text-navbar);
+    border-radius: 12px;
+    margin: 2px 10px;
+    padding: 0.8rem 1rem;
+
+    background: transparent;
+    transform: none;
+
+    transition:
+        background-color 0.18s ease,
+        color 0.18s ease,
+        padding-left 0.18s ease;
+}
+
+.nav-links a::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 3px;
+    height: 0;
+    transform: translateY(-50%);
+    background: #38CB89;
+    border-radius: 0 3px 3px 0;
+
+    transition: height 0.18s ease;
+}
+
+.nav-links a:hover {
+    background: rgba(255,255,255,0.07);
+    transform: none;
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
+.nav-links a:hover::before {
+    height: 18px;
+}
+
+.nav-links a.active {
+    background: rgba(56, 203, 137, 0.12);
+    color: #fff;
+    transform: none;
+    box-shadow: none;
+    font-weight: 600;
+}
+
+.nav-links a.active::before {
+    height: 24px;
+    background: #38CB89;
+}
+
+.nav-links a.active:hover {
+    background: rgba(56, 203, 137, 0.16);
+    transform: none;
+    box-shadow: none;
+}
+
+.nav-icon {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+
+    filter: brightness(1.05);
+    transition: opacity 0.18s ease;
+}
+
+.nav-links a:hover .nav-icon {
+    opacity: 0.9;
+}
+
+.nav-links a.active .nav-icon {
+    opacity: 1;
 }
