@@ -15,9 +15,10 @@ MAX_FEEDBACK_LEN = 8000
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
-@app.route('/')
+
+@app.route('/trades')
 @login_required
-def index():
+def trades():
     date_filter = request.args.get('date_filter', 'last30')
     search_query = request.args.get('search', '').strip()
 
@@ -174,7 +175,7 @@ def index():
     monthly_rr = round(monthly_rr, 2)
 
     return render_template(
-        'index.html',
+        'trades.html',
         trades=processed_parents,
         partials_by_parent=partials_by_parent,
         monthly_rr=monthly_rr,
@@ -189,11 +190,11 @@ def add_trade():
     symbol = request.form.get('symbol', '').upper()
     if not symbol:
         flash('Symbol is required.', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('trades'))
 
     if len(symbol) > 15:
         flash('Symbol cannot exceed 15 characters.', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('trades'))
     
     open_time = request.form.get('open_time', '').replace('T', ' ').strip()
     close_time = request.form.get('close_time', '').replace('T', ' ').strip()
@@ -218,71 +219,71 @@ def add_trade():
         TP = float(TP) if TP else None
     except (TypeError, ValueError):
         flash('Invalid numeric value.', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('trades'))
 
     if status not in ('OPEN', 'CLOSED'):
         flash('Invalid trade status.', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('trades'))
 
     if sort not in ('LONG', 'SHORT'):
         flash('Invalid trade direction.', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('trades'))
 
     if type not in ('HTF', 'MTF', 'LTF'):
         flash('Invalid trade type.', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('trades'))
 
 
     if open_price is not None and SL is not None:
         if sort == 'LONG' and SL >= open_price:
             flash('For a LONG trade, SL must be below the open price.', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('trades'))
 
         if sort == 'SHORT' and SL <= open_price:
             flash('For a SHORT trade, SL must be above the open price.', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('trades'))
 
     if open_price is not None and TP is not None:
         if sort == 'LONG' and TP <= open_price:
             flash('For a LONG trade, TP must be above the open price.', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('trades'))
 
         if sort == 'SHORT' and TP >= open_price:
             flash('For a SHORT trade, TP must be below the open price.', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('trades'))
 
     if SL is not None and TP is not None:
 
         if sort == 'LONG' and SL >= TP:
             flash('For a LONG trade, SL must be below TP.', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('trades'))
 
         if sort == 'SHORT' and SL <= TP:
             flash('For a SHORT trade, SL must be above TP.', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('trades'))
 
     if reason and len(reason) > MAX_REASON_LEN:
         flash(f'Reason is too long. Maximum {MAX_REASON_LEN} characters.', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('trades'))
 
     if len(feedback) > MAX_FEEDBACK_LEN:
         flash(f'Feedback cannot exceed {MAX_FEEDBACK_LEN} characters.', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('trades'))
 
         open_dt = parse_time(open_time)
         close_dt = parse_time(close_time)
 
         if open_time and open_dt is None:
             flash('Invalid open time.', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('trades'))
 
         if close_time and close_dt is None:
             flash('Invalid close time.', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('trades'))
 
         if open_dt and close_dt and close_dt < open_dt:
             flash('Close time cannot be before open time.', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('trades'))
 
 
     try:
@@ -293,26 +294,26 @@ def add_trade():
         TP = parse_float(TP, 'Take profit')
     except ValueError as e:
         flash(str(e), 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('trades'))
     initial_risk = risk
 
     if risk is None:
         flash('Risk is required.', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('trades'))
 
     if risk <= 0:
         flash('Risk must be greater than 0.', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('trades'))
 
 
     if status == 'CLOSED':
         if close_price is None:
             flash('A CLOSED trade must have a close price.', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('trades'))
 
         if not close_time:
             flash('A CLOSED trade must have a close time.', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('trades'))
 
     if status == 'OPEN':
         close_price = None
@@ -330,7 +331,7 @@ def add_trade():
         conn.commit()
      
     flash('Trade added!', 'success')
-    return redirect(url_for('index'))
+    return redirect(url_for('trades'))
 
 
 @app.route('/edit/<int:user_id>', methods=['POST'])
@@ -419,11 +420,11 @@ def edit_trade(user_id):
 
         if risk is None:
             flash('Risk is required.', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('trades'))
 
         if risk <= 0:
             flash('Risk must be greater than 0.', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('trades'))
 
 
         if open_price is not None and SL is not None:
@@ -576,7 +577,7 @@ def delete_trade(user_id):
 
         if not trade:
             flash('Trade not found.', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('trades'))
 
         parent_id = trade['parent_id']
 
@@ -605,7 +606,7 @@ def delete_trade(user_id):
         conn.commit()
 
     flash('Trade deleted successfully!', 'success')
-    return redirect(url_for('index'))
+    return redirect(url_for('trades'))
 
 
 @app.route('/partial_close_inline/<int:parent_id>', methods=['POST'])
@@ -615,13 +616,13 @@ def partial_close_inline(parent_id):
         parent_trade = conn.execute('SELECT * FROM trades WHERE id=?', (parent_id,)).fetchone()
         if parent_trade is None:
             flash('Parent trade not found', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('trades'))
 
         sort = parent_trade['sort']
 
         if sort not in ('LONG', 'SHORT'):
             flash('Invalid parent trade direction.', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('trades'))
 
         parent_open_price = parent_trade['open_price']
         parent_sl = parent_trade['SL']
@@ -630,29 +631,29 @@ def partial_close_inline(parent_id):
         if parent_open_price is not None and parent_sl is not None:
             if sort == 'LONG' and parent_sl >= parent_open_price:
                 flash('Parent LONG trade has an invalid SL.', 'error')
-                return redirect(url_for('index'))
+                return redirect(url_for('trades'))
 
             if sort == 'SHORT' and parent_sl <= parent_open_price:
                 flash('Parent SHORT trade has an invalid SL.', 'error')
-                return redirect(url_for('index'))
+                return redirect(url_for('trades'))
 
         if parent_open_price is not None and parent_tp is not None:
             if sort == 'LONG' and parent_tp <= parent_open_price:
                 flash('Parent LONG trade has an invalid TP.', 'error')
-                return redirect(url_for('index'))
+                return redirect(url_for('trades'))
 
             if sort == 'SHORT' and parent_tp >= parent_open_price:
                 flash('Parent SHORT trade has an invalid TP.', 'error')
-                return redirect(url_for('index'))
+                return redirect(url_for('trades'))
 
         if parent_sl is not None and parent_tp is not None:
             if sort == 'LONG' and parent_sl >= parent_tp:
                 flash('Parent LONG trade has an invalid SL/TP relationship.', 'error')
-                return redirect(url_for('index'))
+                return redirect(url_for('trades'))
 
             if sort == 'SHORT' and parent_sl <= parent_tp:
                 flash('Parent SHORT trade has an invalid SL/TP relationship.', 'error')
-                return redirect(url_for('index'))
+                return redirect(url_for('trades'))
 
 
         risk = request.form.get('risk')
@@ -667,23 +668,23 @@ def partial_close_inline(parent_id):
                 f'Reason is too long. Maximum {MAX_REASON_LEN} characters.',
                 'error'
             )
-            return redirect(url_for('index'))
+            return redirect(url_for('trades'))
 
         if len(feedback) > MAX_FEEDBACK_LEN:
             flash(
                 f'Feedback is too long. Maximum {MAX_FEEDBACK_LEN} characters.',
                 'error'
             )
-            return redirect(url_for('index'))
+            return redirect(url_for('trades'))
 
 
         if status not in ('OPEN', 'CLOSED'):
             flash('Invalid status', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('trades'))
 
         if risk is None or risk <= 0:
             flash('Risk must be provided and > 0', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('trades'))
 
         if status == 'OPEN':
             open_price = request.form.get('open_price')
@@ -693,12 +694,12 @@ def partial_close_inline(parent_id):
 
             if open_price is None:
                 flash('Open price is required for OPEN partial', 'error')
-                return redirect(url_for('index'))
+                return redirect(url_for('trades'))
             open_dt = parse_time(open_time)
 
             if open_time and open_dt is None:
                 flash('Invalid open time.', 'error')
-                return redirect(url_for('index'))
+                return redirect(url_for('trades'))
 
 
             RR = 0.0
@@ -713,30 +714,30 @@ def partial_close_inline(parent_id):
                 close_price = parse_float(close_price_raw, 'Close price')
             except ValueError as e:
                 flash(str(e), 'error')
-                return redirect(url_for('index'))
+                return redirect(url_for('trades'))
 
             open_price = parent_trade['open_price']
             open_time = None
 
             if close_price is None:
                 flash('Close price is required for CLOSED partial', 'error')
-                return redirect(url_for('index'))
+                return redirect(url_for('trades'))
 
             close_dt = parse_time(close_time)
 
             if not close_time:
                 flash('Close time is required for CLOSED partial', 'error')
-                return redirect(url_for('index'))
+                return redirect(url_for('trades'))
 
             if close_dt is None:
                 flash('Invalid close time.', 'error')
-                return redirect(url_for('index'))
+                return redirect(url_for('trades'))
 
             parent_open_dt = parse_time(parent_trade['open_time'])
 
             if parent_open_dt and close_dt < parent_open_dt:
                 flash('Partial close time cannot be before the parent open time.', 'error')
-                return redirect(url_for('index'))
+                return redirect(url_for('trades'))
 
 
 
@@ -752,7 +753,7 @@ def partial_close_inline(parent_id):
                     'Could not calculate RR. Check direction, entry price, and stop loss.',
                     'error'
                 )
-                return redirect(url_for('index'))
+                return redirect(url_for('trades'))
 
             old_parent_risk = (
                 parent_trade['risk']
@@ -766,7 +767,7 @@ def partial_close_inline(parent_id):
                     f'{old_parent_risk}R remaining.',
                     'error'
                 )
-                return redirect(url_for('index'))
+                return redirect(url_for('trades'))
 
             new_parent_risk = old_parent_risk - risk
 
@@ -813,7 +814,7 @@ def partial_close_inline(parent_id):
         conn.commit()
 
     flash('Partial trade added!', 'success')
-    return redirect(url_for('index'))
+    return redirect(url_for('trades'))
 
 
 @app.route('/partial_close_inline_spot/<int:parent_id>', methods=['POST'])
@@ -832,7 +833,7 @@ def partial_close_inline_spot(parent_id):
             risk = parse_float(risk_raw, 'Risk')
         except ValueError as e:
             flash(str(e), 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('trades'))
 
 
         reason = request.form.get('reason', '')
@@ -860,20 +861,20 @@ def partial_close_inline_spot(parent_id):
             if parent_sl is not None:
                 if sort == 'LONG' and parent_sl >= open_price:
                     flash('For a LONG partial, SL must be below the open price.', 'error')
-                    return redirect(url_for('index'))
+                    return redirect(url_for('trades'))
 
                 if sort == 'SHORT' and parent_sl <= open_price:
                     flash('For a SHORT partial, SL must be above the open price.', 'error')
-                    return redirect(url_for('index'))
+                    return redirect(url_for('trades'))
 
             if parent_tp is not None:
                 if sort == 'LONG' and parent_tp <= open_price:
                     flash('For a LONG partial, TP must be above the open price.', 'error')
-                    return redirect(url_for('index'))
+                    return redirect(url_for('trades'))
 
                 if sort == 'SHORT' and parent_tp >= open_price:
                     flash('For a SHORT partial, TP must be below the open price.', 'error')
-                    return redirect(url_for('index'))
+                    return redirect(url_for('trades'))
 
 
             pct_gain = None
@@ -971,7 +972,7 @@ def user_detail(user_id):
     if user is None:
         flash('Not found', 'error')
          
-        return redirect(url_for('index'))
+        return redirect(url_for('trades'))
 
     if request.method == 'POST':
         reason = request.form.get('reason', user['reason'])
