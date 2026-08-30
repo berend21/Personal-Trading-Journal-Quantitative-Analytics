@@ -8,10 +8,12 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="icon" href="{{ url_for('static', filename='favicon.webp') }}" type="image/webp">
 
-    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" as="style" onload="this.rel='stylesheet'">
-    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap"></noscript>    
-    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" as="style" onload="this.rel='stylesheet'">
-    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css"></noscript>
+    <link rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap">
+
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+
 
     {% block extra_head %}{% endblock %}
 </head>
@@ -20,7 +22,7 @@
     <div class="container">
         <nav class="navbar" role="navigation" aria-label="Main navigation">
             <div class="navbar-top">
-                <a href="{{ url_for('index') }}" class="brand-link" aria-label="Smarter Trading Systems Home">
+                <a href="{{ url_for('dashboard') }}" class="brand-link" aria-label="Smarter Trading Systems Home">
                     <img src="{{ url_for('static', filename='logo.webp') }}" alt="STS Logo" class="logo" loading="eager"> 
                     <span class="site-name" aria-hidden="true">
                         <span>Smarter</span>
@@ -62,7 +64,8 @@
                     </a>
                 {% endmacro %}
 
-                {{ nav_link('home.webp', 'Home', 'index') }}
+                {{ nav_link('home.webp', 'Dashboard', 'dashboard') }}
+                {{ nav_link('chart.webp', 'Trades', 'trades')}}
                 {{ nav_link('spot.webp', 'Spot', 'spot')}}
                 {{ nav_link('journal.webp', 'Journal', 'journal') }}
                 {{ nav_link('analysis.webp', 'Analytics', 'analytics') }}
@@ -117,7 +120,7 @@
                                 {% if category == 'info' %}ℹ Info{% endif %}
                             </span>
                             {{ message }}
-                            <button class="flash-close" onclick="this.parentElement.remove()" aria-label="Close">×</button>
+                            <button class="flash-close" aria-label="Close">×</button>
                         </div>
                     {% endfor %}
                 {% endif %}
@@ -142,6 +145,12 @@
         const themeForm = document.getElementById('theme-toggle-form');
         const body = document.body;
         let isDark = body.classList.contains('dark-theme');
+        document.querySelectorAll('.flash-close').forEach(button => {
+            button.addEventListener('click', () => {
+                button.parentElement.remove();
+            });
+        });
+
 
         function updateThemeIcons() {
             document.querySelectorAll('.theme-icon').forEach(icon => {
