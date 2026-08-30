@@ -31,8 +31,7 @@ def trades():
     now = datetime.now()
 
     conditions = ["parent_id IS NULL"]
-    
-    # Date filters
+ 
     if date_filter == 'today':
         start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
@@ -121,17 +120,17 @@ def trades():
                 for p in partials
                 if p['risk_action'] == 'CLOSE'
             )
-            # Risk currently still open
+
             parent['current_risk'] = round(
                 initial_risk + added_risk - closed_risk,
                 8
             )
-            # Risk ever committed
+
             parent['total_committed_risk'] = round(
                 initial_risk + added_risk,
                 8
             )
-            # Risk shown in the table
+
             if parent['status'] == 'CLOSED':
                 parent['display_risk'] = round(initial_risk, 8)
             else:
@@ -270,20 +269,20 @@ def add_trade():
         flash(f'Feedback cannot exceed {MAX_FEEDBACK_LEN} characters.', 'error')
         return redirect(url_for('trades'))
 
-        open_dt = parse_time(open_time)
-        close_dt = parse_time(close_time)
+    open_dt = parse_time(open_time)
+    close_dt = parse_time(close_time)
 
-        if open_time and open_dt is None:
-            flash('Invalid open time.', 'error')
-            return redirect(url_for('trades'))
+    if open_time and open_dt is None:
+        flash('Invalid open time.', 'error')
+        return redirect(url_for('trades'))
 
-        if close_time and close_dt is None:
-            flash('Invalid close time.', 'error')
-            return redirect(url_for('trades'))
+    if close_time and close_dt is None:
+        flash('Invalid close time.', 'error')
+        return redirect(url_for('trades'))
 
-        if open_dt and close_dt and close_dt < open_dt:
-            flash('Close time cannot be before open time.', 'error')
-            return redirect(url_for('trades'))
+    if open_dt and close_dt and close_dt < open_dt:
+        flash('Close time cannot be before open time.', 'error')
+        return redirect(url_for('trades'))
 
 
     try:
