@@ -121,7 +121,8 @@ Daily journal entries
 - To-do items
 
 The intended feedback loop is:
-```What happened?
+```
+What happened?
       ↓
 Why did it happen?
       ↓
@@ -129,7 +130,8 @@ What did I learn?
       ↓
 What should I change?
       ↓
-Did the change improve my process?```
+Did the change improve my process?
+```
 
 
 # 📚 Knowledge Base
