@@ -395,7 +395,7 @@ The application is intended to help record and analyze historical trading activi
 
 All trading decisions and associated risks remain the responsibility of the user.
 
-#📄 License
+# 📄 License
 This project is licensed under the MIT License.
 
 See LICENSE for details.
