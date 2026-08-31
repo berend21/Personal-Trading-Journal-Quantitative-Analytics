@@ -159,7 +159,7 @@ The gallery provides a dedicated space for visual material such as:
 - Reference images
 This is particularly useful for reviewing recurring setups and building a visual library of past decisions.
 
-#🔐 Private & Self-Hosted
+# 🔐 Private & Self-Hosted
 STS is designed primarily for one person's private trading journal.
 
 It is intended to run on:
@@ -179,7 +179,7 @@ HTTPS is not currently a requirement for the intended localhost/private-network 
 
 If STS is eventually exposed through a public or untrusted network, HTTPS and additional deployment hardening should be added.
 
-#🛡️ Security
+# 🛡️ Security
 Although STS is intended for personal use, the application includes several standard security measures:
 
 - Password hashing
@@ -193,7 +193,7 @@ Although STS is intended for personal use, the application includes several stan
 - Database access controls
 These measures are intended to reduce common application-level risks, but they do not replace proper server, network, and backup security.
 
-#🧮 Quantitative Philosophy
+# 🧮 Quantitative Philosophy
 STS is built around several principles.
 
 1. Measure the process, not just the result
@@ -298,8 +298,8 @@ This allows the application to preserve the relationship between the original tr
 The aim is to make performance calculations reflect the actual way a position was managed rather than treating every partial exit as an unrelated trade.
 
 
-#🚀 Installation
-##Requirements
+# 🚀 Installation
+## Requirements
 For local development:
 
 - Python 3.11+
@@ -325,12 +325,12 @@ Application should be available at:
 ```
 localhost
 ```
-##Persistent Data
+## Persistent Data
 Before using the Docker deployment for long-term trading history, configure persistent storage for the SQLite database and uploaded files.
 
 Do not rely on the container filesystem as the only copy of your trading data.
 
-#💾 Backups
+# 💾 Backups
 Trading history is valuable data.
 
 For long-term use, maintain regular backups of:
@@ -343,7 +343,7 @@ A future goal of the project is to make automated backup and restore workflows m
 
 A backup should also be periodically tested by restoring it.
 
-#🧪 Testing
+# 🧪 Testing
 The project includes automated tests covering core trading calculations and analytics.
 
 Run the test suite with:
