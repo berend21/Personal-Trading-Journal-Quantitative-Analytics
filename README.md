@@ -76,7 +76,7 @@ Current analytics include:
 Performance across different time periods
 The analytics layer is intentionally focused on describing the trader's historical behavior, rather than attempting to predict markets.
 
-#🧩 Partial Position Accounting
+# 🧩 Partial Position Accounting
 STS treats partial closes as part of the original trade rather than as unrelated trades.
 
 Conceptually:
