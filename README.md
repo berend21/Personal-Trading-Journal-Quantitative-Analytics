@@ -1,141 +1,217 @@
-# STS (Smarter Trading Systems)
-### *Personal Trading Journal & Quantitative Analytics*
+# STS — Personal Trading Journal & Quantitative Analytics
 
-STS is a personal trading journal and quantitative analytics application designed for self-hosted, private use.
+STS (Smarter Trading Systems) is a self-hosted trading journal and quantitative analytics application built for personal use.
 
-It is intended to run locally on your own computer, home server, or NAS. It is not designed as an online trading platform, SaaS product, or public-facing web application.
+It combines trade tracking, R-multiple analysis, journaling, screenshots, notes, and performance analytics in one private application.
 
-The goal is to provide a private environment for recording trades, reviewing execution, and analysing trading performance over time.
+The goal is simple:
+
+Record → Measure → Review → Identify Patterns → Improve
+
+STS is designed to help answer questions such as:
+
+- Am I following my trading plan?
+- Which setups actually have positive expectancy?
+- How consistent is my execution?
+- Where am I giving R back?
+- Are my results improving over a meaningful sample?
+- What patterns appear in my winning and losing trades?
+- Is a losing trade actually a bad trade, or was it a good process with a bad outcome?
 
 ---
 
-# Philosophy
-STS deliberately focuses on R-multiples rather than money as the primary measure of trading performance.
+#Why R Instead of Money?
+STS uses R-multiples as the primary performance measure.
 
-The purpose is not to maximise a monetary P&L number on a dashboard. Instead, the application is designed to help answer questions such as:
+1R represents the initial amount risked on a trade.
 
-Am I following my trading plan?
-Am I taking valid setups?
-Is my execution consistent?
-What is my expectancy in R?
-Which setups have a positive expectancy?
-Where am I consistently giving R back?
-Am I improving over a sufficiently large sample?
+For example:
 
-# Why R instead of euros or dollars?
-A monetary result can easily become an emotional score.
+|Result|	Meaning|
+|-|-|
+|+3R|	Returned three times the initial risk|
+|+1R|	Returned the initial risk|
+|+0.5R|	Returned half the initial risk|
+|0R|	Breakeven|
+|-1R|	Lost the predefined initial risk|
 
-R provides a normalized way of looking at the same outcome.
+This makes trades comparable regardless of account size or position size.
 
-If 1R represents the amount initially risked on a trade:
+A €50 winner and a €500 winner are not necessarily different quality trades. If both returned +2R, they produced the same risk-adjusted result.
 
-+2R means the trade returned twice the initial risk.
-+0.5R means the trade returned half the initial risk.
--1R means the predefined risk was lost.
-+3R has the same meaning whether 1R was €5, €50, or €500.
-This makes trades comparable across different position sizes and account values.
+The purpose of STS is therefore not to make the largest monetary number appear on a dashboard.
 
-The intention is therefore to keep the main performance analysis in R, rather than euros, dollars, or other currencies.
-
-The objective is not to make more money per trade. The objective is to execute the trading process consistently and evaluate the resulting R distribution over a meaningful sample.
-
-# Personal and Private by Design
-STS is primarily intended for one person's private trading journal.
-
-The application is suitable for running behind your home network or another private network.
-
-It is not intended to be exposed directly to the public internet.
-
-If remote access is required, use an appropriate private-network solution such as a VPN rather than exposing the application directly to the internet.
-
-# Why STS?
-
-Trading generates a lot of information, but it is easy for that information to become fragmented.
-
-STS Engine was built to create a structured feedback loop:
-
-Trade
-  >
-Record
-  >
-Measure
-  >
-Review
-  >
-Identify patterns
-  >
-Improve
-
-The application is primarily designed for personal use and self-hosted environments, rather than multple commercial trading platform or brokers.
+It is to understand the distribution and consistency of trading decisions in R.
 
 # Features
-# 📊 Trading & Performance
-- Record and manage trades
-- Track LONG and SHORT positions
-- Risk/reward (R) calculations
-- Track stop loss, take profit, entry and exit prices
-- Support for partial position closes
+# 📊 Trading
+- Create, edit, and review trades
+- LONG and SHORT positions
+- Entry, stop loss, and take profit tracking
+- Risk/reward calculations
+- Realized R tracking
+- Partial position closes
 - Parent/child trade relationships
-- Track realized performance
-- Review performance across different time periods
-- Compare LONG vs SHORT performance
+- Trade notes
+- Trade screenshots
+- Historical trade review
 
-# 📈 Analytics
+# 📈 Quantitative Analytics
+Current analytics include:
 
-The analytics dashboard provides a quantitative view of trading performance, including:
-
-- Win rate
 - Average R
 - Median R
-- Winning and losing trades
-- Long/Short distribution
-- Performance over different time periods
-- Trade-level performance data
+- Win rate
+- Winning trades
+- Losing trades
+- Breakeven trades
+- Profit factor
+- Payoff ratio
+- R distribution
+- LONG vs SHORT performance
+- Symbol/asset performance
+- Trade duration
+- Streak analysis
+- Drawdown-related metrics
+Performance across different time periods
+The analytics layer is intentionally focused on describing the trader's historical behavior, rather than attempting to predict markets.
 
-The purpose of these metrics is not to predict the market, but to make my own trading behavior easier to evaluate.
+#🧩 Partial Position Accounting
+STS treats partial closes as part of the original trade rather than as unrelated trades.
+
+Conceptually:
+
+```
+Parent Trade
+├── Partial Close #1
+├── Partial Close #2
+└── Partial Close #3
+```
+
+This allows the application to reconstruct the performance of a position that was managed over multiple exits.
+
+For example:
+
+```
+Initial risk: 1R
+
+25% closed at +2R
+25% closed at +1R
+50% closed at -0.5R
+```
+
+The resulting realized R is calculated using the appropriate risk weighting rather than treating each partial exit as a completely independent trade.
+
+This is important because actual trade management often involves scaling out, partial exits, and changing exposure.
 
 # 📝 Trading Journal
 
-Keep contextual information alongside the quantitative data:
+Quantitative data tells you what happened.
 
-- Daily/monthly journal entries
+The journal helps explain why it happened.
+
+STS provides space for:
+
+Daily journal entries
+- Monthly reviews
 - Trade notes
 - Trading rules
+- Reflections
+- Observations
 - To-do items
-- Reflections and observations
 
-This creates a connection between:
-
-What happened?
-      >
+The intended feedback loop is:
+```What happened?
+      ↓
 Why did it happen?
-      >
+      ↓
 What did I learn?
-      >
-What should I do differently?
+      ↓
+What should I change?
+      ↓
+Did the change improve my process?```
+
 
 # 📚 Knowledge Base
+STS includes a personal knowledge base for storing trading-related material.
 
-A personal knowledge base for storing trading-related material and references.
+Examples include:
 
-It can be used for:
-
-- Notes
+- Trading notes
 - Articles
 - Educational material
+- Concepts
+- Reference material
+- PDFs
 - Images
 - Videos
-- PDFs
-- Trading concepts and references
-# 🖼️ Trading Gallery
+The goal is to keep research and trading review in the same environment as the actual trade history.
 
-A dedicated space for storing and reviewing visual trading material such as:
+# 🖼️ Trading Gallery
+The gallery provides a dedicated space for visual material such as:
 
 - Chart screenshots
+- Annotated setups
 - Trade examples
 - Market observations
-- Annotated setups
 - Reference images
+This is particularly useful for reviewing recurring setups and building a visual library of past decisions.
+
+#🔐 Private & Self-Hosted
+STS is designed primarily for one person's private trading journal.
+
+It is intended to run on:
+
+- A personal computer
+- A home server
+- A NAS
+- A private network
+It is not designed to be a public SaaS application, broker, exchange, or trading execution platform.
+
+The application should not be exposed directly to the public internet without appropriate additional security controls.
+
+If remote access is required, a private-network solution such as a VPN is preferable to exposing the application directly to the internet.
+
+#HTTPS
+HTTPS is not currently a requirement for the intended localhost/private-network deployment.
+
+If STS is eventually exposed through a public or untrusted network, HTTPS and additional deployment hardening should be added.
+
+#🛡️ Security
+Although STS is intended for personal use, the application includes several standard security measures:
+
+- Password hashing
+- Session-based authentication
+- CSRF protection
+- Login rate limiting
+- Secure filename handling
+- File type validation
+- Request size limits
+- Security headers
+- Database access controls
+These measures are intended to reduce common application-level risks, but they do not replace proper server, network, and backup security.
+
+#🧮 Quantitative Philosophy
+STS is built around several principles.
+
+1. Measure the process, not just the result
+A winning trade is not automatically a good trade.
+
+A losing trade is not automatically a bad trade.
+
+The goal is to preserve enough context to evaluate decision quality and execution, not just P&L.
+
+2. Use risk-normalized performance
+R allows trades with different position sizes to be compared on the same scale.
+
+3. Combine quantitative and qualitative information
+Numbers explain what happened.
+
+Notes, screenshots, rules, and journal entries help explain why.
+
+4. Prefer useful data over unnecessary complexity
+STS is a personal application.
+Reliable Data => Useful Analytics => Better Review => Better Decisions
 
 # Login page
 <img width="1918" height="916" alt="image" src="https://github.com/user-attachments/assets/d5f25466-f339-44b7-b833-8a21950e4df6" />
@@ -155,24 +231,6 @@ A dedicated space for storing and reviewing visual trading material such as:
 # Analytics
 <img width="1918" height="916" alt="image" src="https://github.com/user-attachments/assets/62a2e930-7ec3-4099-b5e3-246f0294fba2" />
 
-# To do list
-<img width="1918" height="913" alt="image" src="https://github.com/user-attachments/assets/927c79d5-b8fe-4f98-b5e1-982559860e7a" />
-
-# Notes
-<img width="1918" height="915" alt="image" src="https://github.com/user-attachments/assets/97a26922-20be-4fb9-b64a-b7b7d0ed51c4" />
-
-# Gallery
-<img width="1917" height="914" alt="image" src="https://github.com/user-attachments/assets/178b92b3-85fc-46b8-96e0-cd175fd3f5c6" />
-
-# Image modal
-<img width="1917" height="909" alt="image" src="https://github.com/user-attachments/assets/accc817c-791a-41e6-9366-fa16e3128b6e" />
-
-# Knowledge 
-<img width="1918" height="915" alt="image" src="https://github.com/user-attachments/assets/8928f4df-b1b1-4e7f-a7db-93200cf4f83f" />
-
-# Settings
-<img width="1916" height="914" alt="image" src="https://github.com/user-attachments/assets/9a048b91-16eb-4ffa-a96c-5af73a33df29" />
-
 
 # Technology Stack
 
@@ -187,14 +245,14 @@ A dedicated space for storing and reviewing visual trading material such as:
 |Authentication|	Flask-Bcrypt|
 |CSRF Protection|	Flask-WTF|
 |Rate Limiting|	Flask-Limiter|
+|Frontend| HTML/CSS/Javascript|
 |Deployment|	Docker|
-|Frontend|HTML, CSS, JavaScript|
 
-The application intentionally uses a relatively lightweight stack because it is designed primarily for personal/self-hosted use.
+The stack is intentionally lightweight and suited to a self-hosted, single-user application.
 
 # Architecture
 
-At its core, STS Engine follows a straightforward web application architecture:
+STS uses a deliberately lightweight architecture.
 
                     ┌─────────────────┐
                     │     Browser     │
@@ -217,7 +275,9 @@ At its core, STS Engine follows a straightforward web application architecture:
                     │     SQLite      │
                     └─────────────────┘
 
-Trade data is stored relationally so that a parent trade can be associated with partial closes and the resulting performance can be reconstructed.
+The application intentionally avoids unnecessary infrastructure.
+
+For a single-user trading journal, a lightweight stack is preferable to introducing distributed services that do not provide meaningful benefits for the use case.
 
 # Data Model
 
@@ -235,140 +295,105 @@ This allows the application to preserve the relationship between the original tr
 
 The aim is to make performance calculations reflect the actual way a position was managed rather than treating every partial exit as an unrelated trade.
 
-# Quantitative Metrics
 
-STS Engine uses R-based performance analysis to make trades comparable across different position sizes.
+#🚀 Installation
+##Requirements
+For local development:
 
-Some of the core concepts include:
+- Python 3.11+
+- pip
+For containerized deployment:
+- Docker
 
-Risk per trade
-Realized R
-Risk/reward ratio
-Winning R
-Losing R
-Average R
-Median R
-Win rate
-Long/Short distribution
-
-For example, instead of looking only at monetary profit:
-
-Trade A: +$100
-Trade B: +$250
-Trade C: -$75
-
-the journal can evaluate performance in relation to the original risk:
-
-Trade A: +1.0R
-Trade B: +2.5R
-Trade C: -0.75R
-
-This makes performance easier to compare across trades.
-
-
-# Security
-
-Although STS Engine is primarily a personal application, it includes several standard web application security measures:
-
-Password hashing
-CSRF protection
-Session-based authentication
-Login rate limiting
-Secure filename handling for uploads
-File type validation
-Database access controls
-
-The application should still be deployed responsibly, particularly when exposed beyond a trusted local network.
-
-STS Engine is not a broker, exchange, trading execution system, or financial service.
-
-# Running with Docker
-
-Docker is the preferred way to run the application.
 
 Clone the repository:
 ```
-git clone https://github.com/berend21/STS-Engine-Quantitative-Analytics.git
-cd STS-Engine-Quantitative-Data-Pipeline
+git clone https://github.com/berend21/Personal-Trading-Journal-Quantitative-Analytics.git
+cd Personal-Trading-Journal-Quantitative-Analytics
 ```
-Build the image:
-```
-docker build -t sts-engine .
-```
-Run the application:
-```
-docker run -d \
-  --name sts-engine \
-  -p 5050:5050 \
-  sts-engine
-```
-Then open:
-```
-http://localhost:5050
-```
-Configuration and persistent storage should be reviewed before using the container for long-term data storage.
-
-# Running Locally
-Requirements
-- Python 3.11+
-- pip
-
 Install dependencies:
 ```
 pip install -r requirements.txt
 ```
-Run the application:
+Start application:
 ```
 python app.py
 ```
-The application will then be available locally.
+Application should be available at:
+```
+localhost
+```
+##Persistent Data
+Before using the Docker deployment for long-term trading history, configure persistent storage for the SQLite database and uploaded files.
 
-# Design Philosophy
+Do not rely on the container filesystem as the only copy of your trading data.
 
-STS Engine is built around a few principles:
+#💾 Backups
+Trading history is valuable data.
 
-1. Record the process, not just the result.
-A winning trade does not automatically mean a good trade, and a losing trade does not automatically mean a bad trade.
-The goal is to preserve enough context to understand how and why the result occurred.
+For long-term use, maintain regular backups of:
 
-2. Measure in R
-Risk-normalized metrics make trades more comparable and make performance easier to evaluate independently of position size and to remove the money part.
+- SQLite database
+- Uploaded images
+- Knowledge-base files
+- Other persistent application data
+A future goal of the project is to make automated backup and restore workflows more integrated into the application.
 
-3. Keep quantitative and qualitative information together
-Numbers explain what happened.
-Journal entries, notes, rules, and screenshots help explain why.
-STS Engine is designed to keep both sides of that process together.
+A backup should also be periodically tested by restoring it.
 
-4. Prefer useful data over unnecessary complexity
-This is a personal application. The goal is not to build an enterprise trading platform.
-The priority is:
+#🧪 Testing
+The project includes automated tests covering core trading calculations and analytics.
 
-Reliable data
-    >
-Useful analytics
-    >
-Better review
-    >
-Better decisions
+Run the test suite with:
+```
+pytest
+```
+The testing strategy focuses particularly on areas where incorrect calculations could affect historical performance data, including R-multiple calculations and partial-position accounting.
 
 # Roadmap
+The project is actively evolving. Areas I intend to improve include:
 
-- Possible future improvements include:
-- More detailed equity curve analysis
-- Drawdown analysis
-- Improved trade statistics
-- Strategy/setup performance analysis
-- Better data validation
 - Automated database backups
-- More comprehensive testing
-- Improved trade filtering and search
-- More detailed journal/analytics integration
-- Cleaner modular application architecture
+- Backup verification and restore workflow
+- Stronger database constraints
+- Cleaner database migration system
+
+- More detailed equity curves
+- Improved drawdown analysis
+- MAE / MFE analysis
+- More robust expectancy analysis
+- Strategy/setup performance analysis
+- Better sample-size awareness
+- Improved performance attribution
+
+- More detailed trade-quality tracking
+- Process/adherence scoring
+- Structured mistake classification
+- Improved journal/analytics integration
+- Better trade filtering and search
+
+- Expanded integration test coverage
+- Cleaner modular architecture
+- Improved database abstraction
+- CI automation
 
 # Disclaimer
 
-STS Engine is a personal trading journal and analytics tool.
+STS is a personal trading journal and analytics application.
 
-It does not provide financial advice, investment recommendations, trading signals, or automated execution.
+It does not provide:
+
+Financial advice
+Investment recommendations
+Trading signals
+Automated trading
+Broker execution
+Portfolio management services
+The application is intended to help record and analyze historical trading activity.
 
 All trading decisions and associated risks remain the responsibility of the user.
+
+#📄 License
+This project is licensed under the MIT License.
+
+See LICENSE for details.
