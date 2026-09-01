@@ -20,7 +20,7 @@ STS is designed to help answer questions such as:
 
 ---
 
-#Why R Instead of Money?
+# Why R Instead of Money?
 STS uses R-multiples as the primary performance measure.
 
 1R represents the initial amount risked on a trade.
