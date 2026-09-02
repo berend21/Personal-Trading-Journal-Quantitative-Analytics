@@ -180,3 +180,139 @@
         padding: 1.5rem;
     }
 }
+
+.settings-description {
+    color: #64748b;
+    margin: -0.5rem 0 1.5rem 0;
+    line-height: 1.6;
+}
+
+.inline-form {
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+}
+
+.inline-form input {
+    flex: 1;
+}
+
+.inline-form .btn {
+    white-space: nowrap;
+}
+
+.type-setup-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 1.5rem;
+}
+
+.type-setup-item {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 14px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+}
+
+.type-setup-edit-form {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.type-setup-edit-form input {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 0.95rem;
+}
+
+.type-setup-edit-form input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.type-setup-edit-form .btn {
+    padding: 9px 16px;
+    font-size: 0.9rem;
+}
+
+.type-setup-status {
+    min-width: 65px;
+    text-align: center;
+}
+
+.status-active,
+.status-inactive {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.status-active {
+    color: #166534;
+    background: #dcfce7;
+}
+
+.status-inactive {
+    color: #64748b;
+    background: #e2e8f0;
+}
+
+.btn-toggle {
+    padding: 9px 14px;
+    font-size: 0.9rem;
+    background: #e2e8f0;
+    color: #334155;
+}
+
+.btn-toggle:hover {
+    background: #cbd5e1;
+}
+
+.type-setup-item.inactive {
+    opacity: 0.7;
+}
+
+.empty-state {
+    color: #64748b;
+    text-align: center;
+    padding: 1.5rem;
+    background: #f8fafc;
+    border-radius: 10px;
+}
+@media (max-width: 768px) {
+    .inline-form {
+        flex-direction: column;
+    }
+
+    .type-setup-item {
+        grid-template-columns: 1fr;
+    }
+
+    .type-setup-edit-form {
+        width: 100%;
+    }
+
+    .type-setup-status {
+        text-align: left;
+    }
+
+    .type-setup-item > form:last-child {
+        width: 100%;
+    }
+
+    .btn-toggle {
+        width: 100%;
+    }
+}
