@@ -81,6 +81,100 @@
 
     </div>
 
+    <div class="settings-card">
+        <h2>Trade Type Setups</h2>
+
+        <p class="settings-description">
+            Manage the type setups available when recording a trade.
+            Deactivated setups will no longer appear for new trades, but existing trades will keep their values.
+        </p>
+
+        <!-- Add new type setup -->
+        <form method="POST" class="settings-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="add_trade_type_setup">
+
+            <div class="form-group">
+                <label for="trade_type_setup_name">Add Type Setup</label>
+
+                <div class="inline-form">
+                    <input
+                        type="text"
+                        id="trade_type_setup_name"
+                        name="name"
+                        placeholder="e.g. Breakout"
+                        maxlength="50"
+                        required
+                    >
+
+                    <button type="submit" class="btn btn-primary">
+                        Add
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        <!-- Existing type setups -->
+        <div class="type-setup-list">
+
+            {% if trade_type_setups %}
+                {% for setup in trade_type_setups %}
+
+                    <div class="type-setup-item {% if not setup['active'] %}inactive{% endif %}">
+
+                        <form method="POST" class="type-setup-edit-form">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="action" value="edit_trade_type_setup">
+                            <input type="hidden" name="id" value="{{ setup['id'] }}">
+
+                            <input
+                                type="text"
+                                name="name"
+                                value="{{ setup['name'] }}"
+                                maxlength="50"
+                                required
+                            >
+
+                            <button type="submit" class="btn btn-secondary">
+                                Save
+                            </button>
+                        </form>
+
+                        <div class="type-setup-status">
+                            {% if setup['active'] %}
+                                <span class="status-active">Active</span>
+                            {% else %}
+                                <span class="status-inactive">Inactive</span>
+                            {% endif %}
+                        </div>
+
+                        <form method="POST">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="action" value="toggle_trade_type_setup">
+                            <input type="hidden" name="id" value="{{ setup['id'] }}">
+
+                            <button type="submit" class="btn btn-toggle">
+                                {% if setup['active'] %}
+                                    Deactivate
+                                {% else %}
+                                    Activate
+                                {% endif %}
+                            </button>
+                        </form>
+
+                    </div>
+
+                {% endfor %}
+            {% else %}
+                <p class="empty-state">
+                    No trade type setups have been created yet.
+                </p>
+            {% endif %}
+
+        </div>
+    </div>
+
+
     <div class="settings-card about-card">
         <h2>About STS</h2>
         <div class="about-content">
