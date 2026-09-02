@@ -13,6 +13,72 @@
     <div class="detail-left">
         <form method="post" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="trade-meta-row">
+
+                <div class="trade-meta-item type-setup-item">
+                    <label class="trade-meta-label">Type Setup</label>
+
+                    <div class="multi-select" id="typeSetupDropdown">
+                        <button type="button" class="multi-select-button" onclick="toggleTypeSetupDropdown()">
+                            <span id="typeSetupSelectedText">Select type setups...</span>
+                            <span class="dropdown-arrow">▼</span>
+                        </button>
+
+                        <div class="multi-select-menu" id="typeSetupMenu">
+                            {% for option in active_type_setups %}
+                            <label class="multi-select-option">
+                                <input
+                                    type="checkbox"
+                                    name="type_setup"
+                                    value="{{ option }}"
+                                    {% if option in selected_type_setups %}checked{% endif %}
+                                    onchange="updateTypeSetupText()"
+                                >
+                                <span>{{ option }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+
+
+                <div class="trade-meta-item">
+                    <label for="confidence" class="trade-meta-label">
+                        Confidence
+                    </label>
+
+                    <div class="confidence-input">
+                        <input
+                            type="number"
+                            id="confidence"
+                            name="confidence"
+                            min="1"
+                            max="10"
+                            value="{{ user.confidence if user.confidence is not none else '' }}"
+                            placeholder="1–10"
+                        >
+                        <span>/10</span>
+                    </div>
+                </div>
+
+                <div class="trade-meta-item">
+                    <label for="setup" class="trade-meta-label">
+                        Setup
+                    </label>
+
+                    <select name="setup" id="setup">
+                        <option value="">—</option>
+                        <option value="A+" {% if user.setup == 'A+' %}selected{% endif %}>A+</option>
+                        <option value="A" {% if user.setup == 'A' %}selected{% endif %}>A</option>
+                        <option value="B" {% if user.setup == 'B' %}selected{% endif %}>B</option>
+                        <option value="C" {% if user.setup == 'C' %}selected{% endif %}>C</option>
+                    </select>
+                </div>
+
+            </div>
+
+
             <div class="reason-feedback-row">
                 <div class="reason-col">
                     <label for="reason">Reason:</label>
@@ -275,5 +341,43 @@ document.querySelectorAll('textarea').forEach(textarea => {
         }
     };
 })();
+
+function toggleTypeSetupDropdown() {
+    const dropdown = document.getElementById('typeSetupDropdown');
+    dropdown.classList.toggle('open');
+
+    updateTypeSetupText();
+}
+
+function updateTypeSetupText() {
+    const checkboxes = document.querySelectorAll(
+        '#typeSetupMenu input[name="type_setup"]:checked'
+    );
+
+    const text = document.getElementById('typeSetupSelectedText');
+
+    const selected = Array.from(checkboxes).map(cb => cb.value);
+
+    if (selected.length === 0) {
+        text.textContent = 'Select type setups...';
+    } else if (selected.length <= 2) {
+        text.textContent = selected.join(', ');
+    } else {
+        text.textContent = `${selected.slice(0, 2).join(', ')} +${selected.length - 2}`;
+    }
+}
+
+document.addEventListener('click', function(event) {
+    const dropdown = document.getElementById('typeSetupDropdown');
+
+    if (dropdown && !dropdown.contains(event.target)) {
+        dropdown.classList.remove('open');
+    }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    updateTypeSetupText();
+});
+
 </script>
 {% endblock %}
