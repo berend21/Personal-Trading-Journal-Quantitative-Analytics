@@ -1,9 +1,10 @@
-flask
-gunicorn
-werkzeug
-flask-bcrypt
-flask-limiter
-flask-wtf
-pandas
-pillow
-email_validator
+flask == 3.1.2
+werkzeug = 3.1.4
+flask-bcrypt == 1.0.1
+flask-limiter == 4.0.0
+flask-wtf = 1.2.2
+pandas == 2.3.3
+pillow == 10.4.0
+email_validator == 2.3.0
+python-dotenv == 1.2.1
+python-magic-bin == 0.4.14
