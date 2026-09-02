@@ -1,4 +1,4 @@
-from flask import render_template, request, flash, redirect, url_for, jsonify, session
+from flask import render_template, request, flash, redirect, url_for, jsonify, session, json
 from extensions import app
 from database import get_db
 from login import login_required
@@ -194,6 +194,8 @@ def add_trade():
     if len(symbol) > 15:
         flash('Symbol cannot exceed 15 characters.', 'error')
         return redirect(url_for('trades'))
+
+    
     
     open_time = request.form.get('open_time', '').replace('T', ' ').strip()
     close_time = request.form.get('close_time', '').replace('T', ' ').strip()
@@ -205,6 +207,11 @@ def add_trade():
     risk = request.form.get('risk')
     SL = request.form.get('SL')
     TP = request.form.get('TP')
+
+    type_setup = request.form.getlist('type_setup')
+    confidence = request.form.get('confidence', '').strip()
+    setup = request.form.get('setup', '').strip()
+
 
     reason = request.form.get('reason', '').strip()
     feedback = request.form.get('feedback', '').strip()
@@ -231,6 +238,37 @@ def add_trade():
     if type not in ('HTF', 'MTF', 'LTF'):
         flash('Invalid trade type.', 'error')
         return redirect(url_for('trades'))
+
+
+    active_type_setups = get_active_trade_type_setups()
+    invalid_type_setups = [
+        value for value in type_setup
+        if value not in active_type_setups
+    ]
+
+    if invalid_type_setups:
+        flash('Invalid trade type setup selected.', 'error')
+        return redirect(url_for('trades'))
+
+    if confidence:
+        try:
+            confidence = int(confidence)
+        except ValueError:
+            flash('Confidence must be a number between 1 and 10.', 'error')
+            return redirect(url_for('trades'))
+
+        if confidence < 1 or confidence > 10:
+            flash('Confidence must be between 1 and 10.', 'error')
+            return redirect(url_for('trades'))
+    else:
+        confidence = None
+
+    if setup:
+        if setup not in ('A+', 'A', 'B', 'C'):
+            flash('Invalid setup.', 'error')
+            return redirect(url_for('trades'))
+    else:
+        setup = None
 
 
     if open_price is not None and SL is not None:
@@ -320,13 +358,14 @@ def add_trade():
 
     
     RR = calculate_r_multiple(sort, open_price, close_price, SL)
+    type_setup_json = json.dumps(type_setup)
 
 
-    sql = '''INSERT INTO trades (symbol, open_time, close_time, type, status, sort, open_price, close_price, risk, SL, TP, RR, reason, feedback, initial_risk)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'''
+    sql = '''INSERT INTO trades (symbol, open_time, close_time, type, type_setup, confidence, setup, status, sort, open_price, close_price, risk, SL, TP, RR, reason, feedback, initial_risk)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'''
 
     with get_db() as conn:
-        conn.execute(sql, (symbol, open_time, close_time, type, status, sort, open_price, close_price, risk, SL, TP, RR, reason, feedback, initial_risk))    
+        conn.execute(sql, (symbol, open_time, close_time, type, type_setup, confidence, setup, status, sort, open_price, close_price, risk, SL, TP, RR, reason, feedback, initial_risk))    
         conn.commit()
      
     flash('Trade added!', 'success')
@@ -356,6 +395,10 @@ def edit_trade(user_id):
         SL = request.form.get('SL')
         TP = request.form.get('TP')
 
+        type_setup = request.form.getlist('type_setup')
+        confidence = request.form.get('confidence', '').strip()
+        setup = request.form.get('setup', '').strip()
+
         reason = request.form.get('reason', '').strip()
         feedback = request.form.get('feedback', '').strip()
 
@@ -383,6 +426,64 @@ def edit_trade(user_id):
         type = type if type else current['type']
         status = status if status else current['status']
         sort = sort if sort else current['sort']
+
+                # Type setup, confidence and setup are optional.
+        # If submitted, update them.
+        # If not submitted, keep the existing values.
+
+        if 'type_setup' in request.form:
+            active_type_setups = get_active_trade_type_setups()
+            current_type_setups = parse_type_setup(current['type_setup'])
+
+            invalid_type_setups = [
+                value for value in type_setup
+                if value not in active_type_setups
+                and value not in current_type_setups
+            ]
+
+            if invalid_type_setups:
+                return {
+                    'success': False,
+                    'message': 'Invalid trade type setup selected.'
+                }
+
+                type_setup_json = json.dumps(type_setup)
+            else:
+                type_setup_json = current['type_setup']
+
+            if 'confidence' in request.form:
+                if confidence:
+                    try:
+                        confidence = int(confidence)
+                    except ValueError:
+                        return {
+                            'success': False,
+                            'message': 'Confidence must be a number between 1 and 10.'
+                        }
+
+                    if confidence < 1 or confidence > 10:
+                        return {
+                            'success': False,
+                            'message': 'Confidence must be between 1 and 10.'
+                        }
+                else:
+                    confidence = None
+            else:
+                confidence = current['confidence']
+
+            if 'setup' in request.form:
+                if setup and setup not in ('A+', 'A', 'B', 'C'):
+                    return {
+                        'success': False,
+                        'message': 'Invalid setup.'
+                    }
+
+                setup = setup if setup else None
+            else:
+                setup = current['setup']
+
+
+
         if 'reason' not in request.form:
             reason = current['reason']
 
@@ -549,8 +650,8 @@ def edit_trade(user_id):
             risk_action = current['risk_action']
 
 
-        conn.execute('''UPDATE trades SET symbol=?, open_time=?, close_time=?, type=?, status=?, sort=?, open_price=?, close_price=?, risk=?, SL=?, TP=?, RR=?, reason=?, feedback=?, risk_action=? WHERE id=?''', 
-                    (symbol, open_time, close_time, type, status, sort, open_price, close_price, risk, SL, TP, RR, reason, feedback, risk_action, user_id))
+        conn.execute('''UPDATE trades SET symbol=?, open_time=?, close_time=?, type=?, type_setup=?, confidence=?, setup=?, status=?, sort=?, open_price=?, close_price=?, risk=?, SL=?, TP=?, RR=?, reason=?, feedback=?, risk_action=? WHERE id=?''', 
+                    (symbol, open_time, close_time, type, type_setup_json, confidence, setup, status, sort, open_price, close_price, risk, SL, TP, RR, reason, feedback, risk_action, user_id))
         
         if current['parent_id']:
             recalculate_parent(conn, current['parent_id'])
@@ -563,7 +664,9 @@ def edit_trade(user_id):
     except Exception as e:
         conn.rollback()
         return {'success': False, 'message': str(e)}
-    
+
+
+ 
 @app.route('/delete/<int:user_id>', methods=['POST'])
 @login_required
 def delete_trade(user_id):
@@ -785,16 +888,22 @@ def partial_close_inline(parent_id):
         risk_action = 'OPEN' if status == 'OPEN' else 'CLOSE'
         conn.execute('''
             INSERT INTO trades (
-                symbol, open_time, close_time, type, status, sort,
+                symbol, open_time, close_time, type,
+                type_setup, confidence, setup,
+                status, sort,
                 open_price, close_price, risk, SL, TP, RR,
                 reason, feedback, parent_id, risk_action
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             parent_trade['symbol'],
             open_time,
             close_time,
             parent_trade['type'],
+            parent_trade['type_setup'],
+            parent_trade['confidence'],
+            parent_trade['setup'],
             status,
             parent_trade['sort'],
             open_price,
@@ -807,7 +916,8 @@ def partial_close_inline(parent_id):
             feedback,
             parent_id,
             risk_action
-        ))
+        )
+        )
         recalculate_parent(conn, parent_id)
 
         conn.commit()
@@ -820,12 +930,22 @@ def partial_close_inline(parent_id):
 @login_required
 def partial_close_inline_spot(parent_id):
     with get_db() as conn:
-        parent_trade = conn.execute('SELECT * FROM spot_trades WHERE id=?', (parent_id,)).fetchone()
+        parent_trade = conn.execute(
+            'SELECT * FROM spot_trades WHERE id=?',
+            (parent_id,)
+        ).fetchone()
+
         if parent_trade is None:
             flash('Parent spot trade not found', 'error')
             return redirect(url_for('spot'))
 
+        # Parent trade values used for validation
+        sort = parent_trade['sort']
+        parent_sl = parent_trade['SL']
+        parent_tp = parent_trade['TP']
+
         risk_raw = request.form.get('risk')
+
         status = request.form.get('status', '').upper()
 
         try:
@@ -966,101 +1086,217 @@ def partial_close_inline_spot(parent_id):
 @login_required
 def user_detail(user_id):
     conn = get_db()
-    user = conn.execute('SELECT * FROM trades WHERE id = ?', (user_id,)).fetchone()
+
+    user = conn.execute(
+        'SELECT * FROM trades WHERE id = ?',
+        (user_id,)
+    ).fetchone()
 
     if user is None:
         flash('Not found', 'error')
-         
         return redirect(url_for('trades'))
+
+    active_type_setups = get_active_trade_type_setups()
+
+    # Parse existing type setups for the template
+    selected_type_setups = parse_type_setup(user['type_setup'])
 
     if request.method == 'POST':
         reason = request.form.get('reason', user['reason'])
         feedback = request.form.get('feedback', user['feedback'])
 
+        # Setup fields
+        type_setup = request.form.getlist('type_setup')
+        confidence = request.form.get('confidence', '').strip()
+        setup = request.form.get('setup', '').strip()
+
+        # Validate type setups
+        invalid_type_setups = [
+            value for value in type_setup
+            if value not in active_type_setups
+        ]
+
+        if invalid_type_setups:
+            flash('Invalid trade type setup selected.', 'error')
+            return redirect(url_for('user_detail', user_id=user_id))
+
+        type_setup_json = json.dumps(type_setup)
+
+        # Validate confidence
+        if confidence:
+            try:
+                confidence = int(confidence)
+            except ValueError:
+                flash('Confidence must be a number between 1 and 10.', 'error')
+                return redirect(url_for('user_detail', user_id=user_id))
+
+            if confidence < 1 or confidence > 10:
+                flash('Confidence must be between 1 and 10.', 'error')
+                return redirect(url_for('user_detail', user_id=user_id))
+        else:
+            confidence = None
+
+        # Validate setup
+        if setup and setup not in ('A+', 'A', 'B', 'C'):
+            flash('Invalid setup.', 'error')
+            return redirect(url_for('user_detail', user_id=user_id))
+
+        setup = setup if setup else None
+
+        # Images
         delete_reason = request.form.get('delete_reason_image') == 'true'
         delete_feedback = request.form.get('delete_feedback_image') == 'true'
-  
+
         reason_image = request.files.get('reason_image')
         feedback_image = request.files.get('feedback_image')
- 
+
         reason_image_filename = user['reason_image']
         feedback_image_filename = user['feedback_image']
 
+        # Reason image
         if delete_reason:
             if user['reason_image']:
                 try:
-                    os.remove(os.path.join(app.config['UPLOAD_FOLDER'], user['reason_image']))
+                    os.remove(
+                        os.path.join(
+                            app.config['UPLOAD_FOLDER'],
+                            user['reason_image']
+                        )
+                    )
                 except OSError:
-                    pass  
+                    pass
+
             reason_image_filename = None
-  
+
         elif reason_image and reason_image.filename != '':
             if not allowed_file(reason_image.filename):
                 flash('Invalid reason image file extension', 'error')
-                return redirect(url_for('user_detail', user_id=user_id))  
+                return redirect(url_for('user_detail', user_id=user_id))
+
             if reason_image.content_type not in ['image/jpeg', 'image/png']:
                 flash('Invalid reason image MIME type', 'error')
-                return redirect(url_for('user_detail', user_id=user_id))  
+                return redirect(url_for('user_detail', user_id=user_id))
+
             try:
-                reason_image.seek(0) 
-                test_img = Image.open(reason_image)  
-                reason_image.seek(0)  
-            except Exception as e:
+                reason_image.seek(0)
+                Image.open(reason_image)
+                reason_image.seek(0)
+            except Exception:
                 flash('Faulty or corrupt reason image file', 'error')
-                return redirect(url_for('user_detail', user_id=user_id))  
-            if user['reason_image']: 
+                return redirect(url_for('user_detail', user_id=user_id))
+
+            if user['reason_image']:
                 try:
-                    os.remove(os.path.join(app.config['UPLOAD_FOLDER'], user['reason_image']))
+                    os.remove(
+                        os.path.join(
+                            app.config['UPLOAD_FOLDER'],
+                            user['reason_image']
+                        )
+                    )
                 except OSError:
                     pass
+
             filename = secure_filename(reason_image.filename)
             filename = f"{int(time.time())}_{filename}"
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            filepath = os.path.join(
+                app.config['UPLOAD_FOLDER'],
+                filename
+            )
+
             reason_image.save(filepath)
             reason_image_filename = filename
 
+        # Feedback image
         if delete_feedback:
             if user['feedback_image']:
                 try:
-                    os.remove(os.path.join(app.config['UPLOAD_FOLDER'], user['feedback_image']))
+                    os.remove(
+                        os.path.join(
+                            app.config['UPLOAD_FOLDER'],
+                            user['feedback_image']
+                        )
+                    )
                 except OSError:
-                    pass 
+                    pass
+
             feedback_image_filename = None
 
         elif feedback_image and feedback_image.filename != '':
             if not allowed_file(feedback_image.filename):
                 flash('Invalid feedback image file extension', 'error')
-                return redirect(url_for('user_detail', user_id=user_id))  
+                return redirect(url_for('user_detail', user_id=user_id))
+
             if feedback_image.content_type not in ['image/jpeg', 'image/png']:
                 flash('Invalid feedback image MIME type', 'error')
-                return redirect(url_for('user_detail', user_id=user_id))  
+                return redirect(url_for('user_detail', user_id=user_id))
+
             try:
-                feedback_image.seek(0)  
-                test_img = Image.open(feedback_image)  
-                feedback_image.seek(0)  
-            except Exception as e:
+                feedback_image.seek(0)
+                Image.open(feedback_image)
+                feedback_image.seek(0)
+            except Exception:
                 flash('Faulty or corrupt feedback image file', 'error')
-                return redirect(url_for('user_detail', user_id=user_id))  
-            if user['feedback_image']:  
+                return redirect(url_for('user_detail', user_id=user_id))
+
+            if user['feedback_image']:
                 try:
-                    os.remove(os.path.join(app.config['UPLOAD_FOLDER'], user['feedback_image']))
+                    os.remove(
+                        os.path.join(
+                            app.config['UPLOAD_FOLDER'],
+                            user['feedback_image']
+                        )
+                    )
                 except OSError:
                     pass
+
             filename = secure_filename(feedback_image.filename)
             filename = f"{int(time.time())}_{filename}"
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            feedback_image.save(filepath) 
+            filepath = os.path.join(
+                app.config['UPLOAD_FOLDER'],
+                filename
+            )
+
+            feedback_image.save(filepath)
             feedback_image_filename = filename
 
-        conn.execute('''UPDATE trades SET reason = ?, feedback = ?, reason_image = ?, feedback_image = ? WHERE id = ?''', 
-                    (reason, feedback, reason_image_filename, feedback_image_filename, user_id))
-        conn.commit()
-         
-        flash('Changes saved successfully!', 'success')
-        return redirect(url_for('user_detail', user_id=user_id))  
+        # Update trade
+        conn.execute(
+            '''
+            UPDATE trades
+            SET reason = ?,
+                feedback = ?,
+                reason_image = ?,
+                feedback_image = ?,
+                type_setup = ?,
+                confidence = ?,
+                setup = ?
+            WHERE id = ?
+            ''',
+            (
+                reason,
+                feedback,
+                reason_image_filename,
+                feedback_image_filename,
+                type_setup_json,
+                confidence,
+                setup,
+                user_id
+            )
+        )
 
-     
-    return render_template('user_detail.html', user=user)
+        conn.commit()
+
+        flash('Changes saved successfully!', 'success')
+
+        return redirect(url_for('user_detail', user_id=user_id))
+
+    return render_template(
+        'user_detail.html',
+        user=user,
+        active_type_setups=active_type_setups,
+        selected_type_setups=selected_type_setups
+    )
+
 def calculate_r_multiple(sort, open_price, close_price, stop_loss):
     if None in (open_price, close_price, stop_loss):
         return None
@@ -1307,3 +1543,30 @@ def recalculate_parent(conn, parent_id):
         'status': status,
         'close_time': close_time
     }
+
+
+def get_active_trade_type_setups():
+    db = get_db()
+    rows = db.execute("""
+        SELECT name
+        FROM trade_type_setups
+        WHERE active = 1
+        ORDER BY sort_order ASC, name ASC
+    """).fetchall()
+
+    return [row["name"] for row in rows]
+
+
+def parse_type_setup(value):
+    """Safely convert stored type_setup JSON into a Python list."""
+    if not value:
+        return []
+
+    try:
+        parsed = json.loads(value)
+        return parsed if isinstance(parsed, list) else []
+    except (json.JSONDecodeError, TypeError):
+        return []
+
+
+
