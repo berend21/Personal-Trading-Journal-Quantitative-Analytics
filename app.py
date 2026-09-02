@@ -39,6 +39,7 @@ app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
 from database import init_db, get_db, close_db
 app.teardown_appcontext(close_db)
 from login import *
+from dashboard import *
 from spot import *
 from journal import *
 from gallery import *
