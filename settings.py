@@ -42,14 +42,33 @@ def settings():
         if action == 'change_password':
             return change_password(conn, user)
 
+        if action == 'add_trade_type_setup':
+            return add_trade_type_setup(conn)
+
+        if action == 'edit_trade_type_setup':
+            return edit_trade_type_setup(conn)
+
+        if action == 'toggle_trade_type_setup':
+            return toggle_trade_type_setup(conn)
+
         flash('Invalid settings request.', 'danger')
         return redirect(url_for('settings'))
 
+    trade_type_setups = conn.execute(
+        '''
+        SELECT id, name, sort_order, active
+        FROM trade_type_setups
+        ORDER BY sort_order ASC, name ASC
+        '''
+    ).fetchall()
+
+    
     return render_template(
         'settings.html',
         user=user,
         app_version=APP_VERSION,
-        build_date = BUILD_DATE
+        build_date = BUILD_DATE,
+        trade_type_setups = trade_type_setups
     )
 
 
@@ -120,3 +139,113 @@ def change_password(conn, user):
 
     flash('Password changed successfully!', 'success')
     return redirect(url_for('settings'))
+
+def add_trade_type_setup(conn):
+    name = request.form.get('name', '').strip()
+
+    if not name:
+        flash('Type setup name is required.', 'danger')
+        return redirect(url_for('settings'))
+
+    if len(name) > 50:
+        flash('Type setup name cannot exceed 50 characters.', 'danger')
+        return redirect(url_for('settings'))
+
+    existing = conn.execute(
+        'SELECT id FROM trade_type_setups WHERE name = ?',
+        (name,)
+    ).fetchone()
+
+    if existing:
+        flash('That type setup already exists.', 'danger')
+        return redirect(url_for('settings'))
+
+    max_sort = conn.execute(
+        'SELECT COALESCE(MAX(sort_order), 0) FROM trade_type_setups'
+    ).fetchone()[0]
+
+    conn.execute(
+        '''
+        INSERT INTO trade_type_setups (name, sort_order, active)
+        VALUES (?, ?, 1)
+        ''',
+        (name, max_sort + 1)
+    )
+
+    conn.commit()
+
+    flash('Trade type setup added successfully!', 'success')
+    return redirect(url_for('settings'))
+
+def edit_trade_type_setup(conn):
+    setup_id = request.form.get('id')
+    name = request.form.get('name', '').strip()
+
+    if not setup_id:
+        flash('Invalid type setup.', 'danger')
+        return redirect(url_for('settings'))
+
+    if not name:
+        flash('Type setup name is required.', 'danger')
+        return redirect(url_for('settings'))
+
+    if len(name) > 50:
+        flash('Type setup name cannot exceed 50 characters.', 'danger')
+        return redirect(url_for('settings'))
+
+    existing = conn.execute(
+        '''
+        SELECT id
+        FROM trade_type_setups
+        WHERE name = ? AND id != ?
+        ''',
+        (name, setup_id)
+    ).fetchone()
+
+    if existing:
+        flash('That type setup already exists.', 'danger')
+        return redirect(url_for('settings'))
+
+    result = conn.execute(
+        '''
+        UPDATE trade_type_setups
+        SET name = ?
+        WHERE id = ?
+        ''',
+        (name, setup_id)
+    )
+
+    if result.rowcount == 0:
+        flash('Type setup not found.', 'danger')
+        return redirect(url_for('settings'))
+
+    conn.commit()
+
+    flash('Trade type setup updated successfully!', 'success')
+    return redirect(url_for('settings'))
+
+def toggle_trade_type_setup(conn):
+    setup_id = request.form.get('id')
+
+    if not setup_id:
+        flash('Invalid type setup.', 'danger')
+        return redirect(url_for('settings'))
+
+    result = conn.execute(
+        '''
+        UPDATE trade_type_setups
+        SET active = CASE WHEN active = 1 THEN 0 ELSE 1 END
+        WHERE id = ?
+        ''',
+        (setup_id,)
+    )
+
+    if result.rowcount == 0:
+        flash('Type setup not found.', 'danger')
+        return redirect(url_for('settings'))
+
+    conn.commit()
+
+    flash('Trade type setup status updated!', 'success')
+    return redirect(url_for('settings'))
+
