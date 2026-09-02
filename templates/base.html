@@ -162,10 +162,11 @@
         themeToggles.forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
-                body.classList.toggle('dark-theme');
-                isDark = body.classList.contains('dark-theme');
-                updateThemeIcons();
-                themeForm.submit(); 
+
+                if (btn.disabled) return;
+
+                btn.disabled = true;
+                themeForm.submit();
             });
         });
 
