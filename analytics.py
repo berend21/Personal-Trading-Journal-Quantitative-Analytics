@@ -3,63 +3,140 @@ from extensions import app
 from database import get_db
 from login import login_required
 from datetime import datetime, timedelta
-import calendar
 import math
 from asset_classifier import get_asset_class, ASSET_CLASSES
 
-VALID_PERIODS = {"monthly", "last_month", "yearly", "all"}
+VALID_PERIODS = {"monthly", "last_month", "7d", "30d","90d","ytd","all","custom"}
 VALID_ATTRIBUTIONS = {"entry", "exit"}
 TRADE_TYPES = ("HTF", "MTF", "LTF")
 DIRECTIONS = ("LONG", "SHORT")
 
+from statistics import (
+    safe_float,
+    roundit,
+    percentage,
+    calculate_streaks,
+    calculate_drawdown,
+)
 
-def _date_range(period, now):
+
+def _date_range(
+    period,
+    now,
+    custom_start=None,
+    custom_end=None,
+):
+    today_end = now.replace(
+        hour=23,
+        minute=59,
+        second=59,
+        microsecond=999999,
+    )
+
+    if period == "7d":
+        start = (now - timedelta(days=6)).replace(
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+        return start, today_end
+
+    if period == "30d":
+        start = (now - timedelta(days=29)).replace(
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+        return start, today_end
+
+    if period == "90d":
+        start = (now - timedelta(days=89)).replace(
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+        return start, today_end
 
     if period == "monthly":
         start = now.replace(
-            day=1, hour=0, minute=0, second=0, microsecond=0
+            day=1,
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
         )
-        end = (
-            start.replace(day=28) + timedelta(days=4)
-        ).replace(day=1) - timedelta(seconds=1)
-        return start, end
+
+        return start, today_end
+
 
     if period == "last_month":
-        start_this_month = now.replace(
-            day=1, hour=0, minute=0, second=0, microsecond=0
+        this_month_start = now.replace(
+            day=1,
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
         )
-        end = start_this_month - timedelta(seconds=1)
-        start = end.replace(
-            day=1, hour=0, minute=0, second=0, microsecond=0
-        )
-        return start, end
 
-    if period == "yearly":
+        last_month_end = (
+            this_month_start - timedelta(microseconds=1)
+        )
+
+        last_month_start = last_month_end.replace(
+            day=1,
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+
+        return last_month_start, last_month_end
+
+    if period == "ytd":
         start = now.replace(
-            month=1, day=1, hour=0, minute=0, second=0, microsecond=0
+            month=1,
+            day=1,
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
         )
-        end = now.replace(
-            month=12,
-            day=31,
-            hour=23,
-            minute=59,
-            second=59,
-            microsecond=999999,
-        )
-        return start, end
 
+        return start, today_end
+
+    if period == "custom":
+        return custom_start, custom_end
+
+    # all
     return None, None
 
 
-def _build_filter(period, now, date_field="close_time"):
+
+def _build_filter(
+    period,
+    now,
+    date_field="close_time",
+    custom_start=None,
+    custom_end=None,
+):
 
     if date_field not in {"open_time", "close_time"}:
-        raise ValueError(f"Invalid analytics date field: {date_field}")
+        raise ValueError(
+            f"Invalid analytics date field: {date_field}"
+        )
 
     conditions = ["parent_id IS NULL"]
     params = []
 
-    start_date, end_date = _date_range(period, now)
+    start_date, end_date = _date_range(
+        period,
+        now,
+        custom_start=custom_start,
+        custom_end=custom_end,
+    )
 
     if start_date and end_date:
         conditions.append(
@@ -74,84 +151,8 @@ def _build_filter(period, now, date_field="close_time"):
     return " AND ".join(conditions), params
 
 
-def _safe_float(value, default=0.0):
-    try:
-        if value is None:
-            return default
-        return float(value)
-    except (TypeError, ValueError):
-        return default
 
 
-def _round(value, digits=2):
-    return round(_safe_float(value), digits)
-
-
-def _percentage(numerator, denominator, digits=1):
-    if not denominator:
-        return 0.0
-    return round((numerator / denominator) * 100, digits)
-
-
-def _calculate_streaks(rr_values):
-
-    max_win_streak = 0
-    max_loss_streak = 0
-
-    current_win = 0
-    current_loss = 0
-
-    for rr in rr_values:
-        rr = _safe_float(rr)
-
-        if rr > 0:
-            current_win += 1
-            current_loss = 0
-        elif rr < 0:
-            current_loss += 1
-            current_win = 0
-        else:
-            current_win = 0
-            current_loss = 0
-
-        max_win_streak = max(max_win_streak, current_win)
-        max_loss_streak = max(max_loss_streak, current_loss)
-
-    return max_win_streak, max_loss_streak
-
-
-def _calculate_drawdown(rr_values):
-
-    equity = 0.0
-    peak = 0.0
-    max_drawdown = 0.0
-    max_drawdown_pct = 0.0
-
-    equity_curve = []
-    drawdown_curve = []
-
-    for rr in rr_values:
-        equity += _safe_float(rr)
-        peak = max(peak, equity)
-
-        drawdown = equity - peak
-
-        if drawdown < max_drawdown:
-            max_drawdown = drawdown
-
-        if peak > 0:
-            dd_pct = abs(drawdown) / peak * 100
-            max_drawdown_pct = max(max_drawdown_pct, dd_pct)
-
-        equity_curve.append(round(equity, 4))
-        drawdown_curve.append(round(drawdown, 4))
-
-    return (
-        round(max_drawdown, 2),
-        round(max_drawdown_pct, 2),
-        equity_curve,
-        drawdown_curve,
-    )
 
 def _calculate_asset_class_stats(rows):
     stats = {
@@ -190,7 +191,7 @@ def _calculate_asset_class_stats(rows):
         if row["status"] != "CLOSED" or row["RR"] is None:
             continue
 
-        rr = _safe_float(row["RR"])
+        rr = safe_float(row["RR"])
 
         data["closed_count"] += 1
         data["total_rr"] += rr
@@ -209,7 +210,7 @@ def _calculate_asset_class_stats(rows):
     for asset_class, data in stats.items():
         closed_count = data["closed_count"]
 
-        data["win_rate"] = _percentage(
+        data["win_rate"] = percentage(
             data["wins"],
             closed_count,
         )
@@ -249,21 +250,116 @@ def analytics():
     if attribution not in VALID_ATTRIBUTIONS:
         attribution = "exit"
 
+    custom_start = None
+    custom_end = None
+
+    if period == "custom":
+
+        custom_start_raw = request.args.get("start")
+        custom_end_raw = request.args.get("end")
+
+        try:
+            if not custom_start_raw or not custom_end_raw:
+                raise ValueError("Custom start and end dates are required")
+
+            custom_start = datetime.strptime(
+                custom_start_raw,
+                "%Y-%m-%d",
+            ).replace(
+                hour=0,
+                minute=0,
+                second=0,
+                microsecond=0,
+            )
+
+            custom_end = datetime.strptime(
+                custom_end_raw,
+                "%Y-%m-%d",
+            ).replace(
+                hour=23,
+                minute=59,
+                second=59,
+                microsecond=999999,
+            )
+
+            if custom_end < custom_start:
+                raise ValueError(
+                    "Custom end date cannot be before start date"
+                )
+
+        except (TypeError, ValueError):
+            return "Invalid custom date range", 400
+
+
     now = datetime.now()
+    
+    
 
     conn = get_db()
+
+
+    display_start, display_end = _date_range(
+        period,
+        now,
+        custom_start=custom_start,
+        custom_end=custom_end,
+    )
+
+    if period == "all":
+
+        date_range_row = conn.execute(
+            """
+            SELECT
+                MIN(open_time) AS first_date,
+                MAX(close_time) AS last_date
+            FROM trades
+            WHERE parent_id IS NULL
+            """
+        ).fetchone()
+
+        display_start = date_range_row["first_date"]
+        display_end = date_range_row["last_date"]
+
+
+    date_range_label = None
+
+    if display_start and display_end:
+
+        if isinstance(display_start, str):
+            display_start = datetime.fromisoformat(
+                display_start
+            )
+
+        if isinstance(display_end, str):
+            display_end = datetime.fromisoformat(
+                display_end
+            )
+
+        date_range_label = (
+            f"{display_start.strftime('%d %B %Y')} "
+            f"– "
+            f"{display_end.strftime('%d %B %Y')}"
+        )
+
+
+
 
     performance_where, performance_params = _build_filter(
         period,
         now,
         date_field="close_time",
+        custom_start=custom_start,
+        custom_end=custom_end,
     )
 
     entry_where, entry_params = _build_filter(
         period,
         now,
         date_field="open_time",
+        custom_start=custom_start,
+        custom_end=custom_end,
     )
+
     entry_count = conn.execute(
         f"""
         SELECT COUNT(*)
@@ -332,13 +428,6 @@ def analytics():
         """,
         entry_params,
     ).fetchall()
-
-
-
-    for row in status_rows:
-        print(row["status"], row["count"])
-
-
 
 
     closed_raw = conn.execute(
@@ -418,32 +507,32 @@ def analytics():
     loss_count = int(closed_raw["losses"] or 0)
     breakeven_count = int(closed_raw["breakevens"] or 0)
 
-    total_rr = _round(closed_raw["total_rr"])
-    average_rr = _round(closed_raw["average_rr"])
+    total_rr = roundit(closed_raw["total_rr"])
+    average_rr = roundit(closed_raw["average_rr"])
 
-    average_win = _round(closed_raw["average_win"])
-    average_loss = _round(closed_raw["average_loss"])
+    average_win = roundit(closed_raw["average_win"])
+    average_loss = roundit(closed_raw["average_loss"])
 
     highest_rr = (
-        _round(closed_raw["best_rr"])
+        roundit(closed_raw["best_rr"])
         if closed_raw["best_rr"] is not None
         else None
     )
 
     lowest_rr = (
-        _round(closed_raw["worst_rr"])
+        roundit(closed_raw["worst_rr"])
         if closed_raw["worst_rr"] is not None
         else None
     )
 
-    gross_profit = _round(closed_raw["gross_profit"])
-    gross_loss = _round(closed_raw["gross_loss"])
+    gross_profit = roundit(closed_raw["gross_profit"])
+    gross_loss = roundit(closed_raw["gross_loss"])
 
-    win_rate = _percentage(win_count, closed_count)
+    win_rate = percentage(win_count, closed_count)
 
-    loss_rate = _percentage(loss_count, closed_count)
+    loss_rate = percentage(loss_count, closed_count)
 
-    breakeven_rate = _percentage(
+    breakeven_rate = percentage(
         breakeven_count,
         closed_count,
     )
@@ -489,7 +578,7 @@ def analytics():
     ).fetchone()
 
     median_rr = (
-        _round(median_row["median_rr"])
+        roundit(median_row["median_rr"])
         if median_row and median_row["median_rr"] is not None
         else None
     )
@@ -508,7 +597,7 @@ def analytics():
 
 
     rr_sequence = [
-        _safe_float(row["RR"])
+        safe_float(row["RR"])
         for row in rr_rows
     ]
 
@@ -526,7 +615,7 @@ def analytics():
 
     rr_stddev = round(rr_stddev, 2)
 
-    max_win_streak, max_loss_streak = _calculate_streaks(
+    max_win_streak, max_loss_streak = calculate_streaks(
         rr_sequence
     )
 
@@ -535,7 +624,7 @@ def analytics():
         max_drawdown_pct,
         equity_curve,
         drawdown_curve,
-    ) = _calculate_drawdown(rr_sequence)
+    ) = calculate_drawdown(rr_sequence)
 
 
     ticker_row = conn.execute(
@@ -627,8 +716,8 @@ def analytics():
             "count": count,
             "closed_count": closed_count,
             "wins": wins,
-            "win_rate": _percentage(wins, closed_count),
-            "total_rr": _round(row["total_rr"]),
+            "win_rate": percentage(wins, closed_count),
+            "total_rr": roundit(row["total_rr"]),
         }
 
 
@@ -638,12 +727,12 @@ def analytics():
 
     total_direction_trades = long_count + short_count
 
-    long_ratio = _percentage(
+    long_ratio = percentage(
         long_count,
         total_direction_trades,
     )
 
-    short_ratio = _percentage(
+    short_ratio = percentage(
         short_count,
         total_direction_trades,
     )
@@ -725,9 +814,9 @@ def analytics():
             "win_count": wins,
             "loss_count": losses,
             "breakeven_count": breakevens,
-            "win_rate": _percentage(wins, total),
-            "total_rr": _round(row["total_rr"]),
-            "average_rr": _round(row["average_rr"]),
+            "win_rate": percentage(wins, total),
+            "total_rr": roundit(row["total_rr"]),
+            "average_rr": roundit(row["average_rr"]),
         }
 
 
@@ -794,7 +883,7 @@ def analytics():
         performance_params,
     ).fetchone()
 
-    avg_duration_seconds = _safe_float(
+    avg_duration_seconds = safe_float(
         duration_row["avg_seconds"]
         if duration_row
         else 0
@@ -835,7 +924,7 @@ def analytics():
     for row in daily_rows:
         daily_performance.append({
             "date": row["trade_date"],
-            "rr": _round(row["total_rr"]),
+            "rr": roundit(row["total_rr"]),
             "trade_count": int(row["trade_count"] or 0),
         })
 
@@ -912,71 +1001,91 @@ def analytics():
             "wins": wins,
             "losses": losses,
             "breakevens": breakevens,
-            "win_rate": _percentage(wins, count),
-            "total_rr": _round(row["total_rr"]),
-            "average_rr": _round(row["average_rr"]),
+            "win_rate": percentage(wins, count),
+            "total_rr": roundit(row["total_rr"]),
+            "average_rr": roundit(row["average_rr"]),
         })
 
 
     rr_labels = []
     rr_values = []
 
-    if period == "monthly":
-
-        year = now.year
-        month = now.month
-
-        days = calendar.monthrange(year, month)[1]
+    if period in {"7d", "30d", "monthly", "last_month", "custom"}:
 
         rr_labels = [
-            f"{year}-{month:02d}-{day:02d}"
-            for day in range(1, days + 1)
+            row["date"]
+            for row in daily_performance
         ]
-
-        daily_map = {
-            row["trade_date"]: _round(row["total_rr"])
-            for row in daily_rows
-        }
 
         rr_values = [
-            daily_map.get(label, 0.0)
-            for label in rr_labels
+            row["rr"]
+            for row in daily_performance
         ]
 
-    elif period == "yearly":
+    elif period in {"90d"}:
 
-        rr_labels = [
-            calendar.month_abbr[i]
-            for i in range(1, 13)
-        ]
-
-        monthly_rows = conn.execute(
+        # Keep the chart readable by aggregating into weeks.
+        weekly_rows = conn.execute(
             f"""
             SELECT
-                strftime('%m', close_time) AS month,
+                DATE(
+                    close_time,
+                    '-' || ((CAST(strftime('%w', close_time) AS INTEGER) + 6) % 7) || ' days'
+                ) AS week_start,
                 SUM(RR) AS total_rr
 
             FROM trades
 
             WHERE {performance_where}
-              AND status = 'CLOSED'
-              AND RR IS NOT NULL
-              AND close_time IS NOT NULL
+            AND status = 'CLOSED'
+            AND RR IS NOT NULL
+            AND close_time IS NOT NULL
 
-            GROUP BY strftime('%m', close_time)
+            GROUP BY week_start
+            ORDER BY week_start
+            """,
+            performance_params,
+        ).fetchall()
+
+        rr_labels = [
+            row["week_start"]
+            for row in weekly_rows
+        ]
+
+        rr_values = [
+            roundit(row["total_rr"])
+            for row in weekly_rows
+        ]
+
+    elif period in {"ytd", "all"}:
+
+        monthly_rows = conn.execute(
+            f"""
+            SELECT
+                strftime('%Y-%m', close_time) AS month,
+                SUM(RR) AS total_rr
+
+            FROM trades
+
+            WHERE {performance_where}
+            AND status = 'CLOSED'
+            AND RR IS NOT NULL
+            AND close_time IS NOT NULL
+
+            GROUP BY strftime('%Y-%m', close_time)
             ORDER BY month
             """,
             performance_params,
         ).fetchall()
 
-        monthly_map = {
-            row["month"]: _round(row["total_rr"])
+        rr_labels = [
+            row["month"]
             for row in monthly_rows
-        }
+        ]
 
         rr_values = [
-            monthly_map.get(f"{month:02d}", 0.0)
-            for month in range(1, 13)
+            roundit(row["total_rr"])
+            for row in monthly_rows
         ]
 
     else:
@@ -1137,7 +1246,8 @@ def analytics():
 
 
     return render_template(
-        "analytics.html",
-        analytics_data=analytics_data,
-        period=period,
-    )
+    "analytics.html",
+    analytics_data=analytics_data,
+    period=period,
+    date_range_label=date_range_label,
+)
