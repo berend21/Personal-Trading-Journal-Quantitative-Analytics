@@ -1,2 +1,389 @@
 {% extends "base.html" %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+{% endblock %}
+
 {% block title %}Dashboard - STS{% endblock %}
+
+{% block content %}
+
+<main class="dashboard-page">
+
+
+    <section class="dashboard-header">
+
+        <div>
+            <p class="dashboard-greeting" id="dashboard-greeting">
+                Good afternoon
+            </p>
+
+            <p class="dashboard-date" id="dashboard-date"></p>
+        </div>
+
+    </section>
+
+
+
+    <section class="dashboard-grid">
+
+
+        <div class="dashboard-card dashboard-today-card">
+
+            <div class="dashboard-card-header">
+                <div>
+                    <span class="dashboard-eyebrow">TODAY</span>
+                    <h2>Trading at a glance</h2>
+                </div>
+            </div>
+
+
+            {% if today.trade_count > 0 %}
+
+                <div class="today-summary">
+
+                    <div class="today-r {% if today.total_r > 0 %}positive{% elif today.total_r < 0 %}negative{% endif %}">
+                        {% if today.total_r > 0 %}+{% endif %}{{ "%.2f"|format(today.total_r) }}R
+                    </div>
+
+
+                    <div class="today-trades">
+                        {{ today.trade_count }}
+                        {% if today.trade_count == 1 %}
+                            trade
+                        {% else %}
+                            trades
+                        {% endif %}
+                    </div>
+
+                    <div class="today-record">
+                        {{ today.wins }} wins · {{ today.losses }} losses
+                    </div>
+
+                    <div class="today-extremes">
+
+                        <div>
+                            <span>Best trade</span>
+                            <strong>
+                                {% if today.best_r > 0 %}+{% endif %}{{ "%.2f"|format(today.best_r) }}R
+                            </strong>
+                        </div>
+
+                        <div>
+                            <span>Worst trade</span>
+                            <strong>
+                                {{ "%.2f"|format(today.worst_r) }}R
+                            </strong>
+                        </div>
+
+                    </div>
+
+                </div>
+
+            {% else %}
+
+                <div class="dashboard-empty-state">
+
+                    <div class="dashboard-empty-icon">＋</div>
+
+                    <p>No trading activity yet today.</p>
+
+                    <a href="{{ url_for('trades') }}"
+                       class="dashboard-action-button">
+                        Log a trade
+                    </a>
+
+                </div>
+
+            {% endif %}
+                    
+
+            <div class="today-open-trades">
+
+                <div class="today-open-trades-header">
+                    <span class="dashboard-eyebrow">OPEN TRADES</span>
+                </div>
+
+
+                {% if today.open_trades %}
+
+                    <div class="today-open-trades-list">
+
+                        {% for trade in today.open_trades %}
+
+                            <div class="today-open-trade">
+
+                                <div class="today-open-trade-info">
+
+                                    <span class="today-open-trade-id">
+                                        #{{ trade['id'] }}
+                                    </span>
+
+                                    <span class="today-open-trade-symbol">
+                                        {{ trade['symbol'] }}
+                                    </span>
+
+                                </div>
+
+
+                                {% if trade['sort'] %}
+
+                                    <span class="today-open-trade-direction {{ trade['sort']|lower }}">
+                                        {{ trade['sort'] }}
+                                    </span>
+
+                                {% endif %}
+
+                            </div>
+
+                        {% endfor %}
+
+                    </div>
+
+
+                {% else %}
+
+                    <p class="today-open-trades-empty">
+                        No open trades.
+                    </p>
+
+                {% endif %}
+
+            </div>
+
+
+        </div>
+
+
+        <div class="dashboard-card dashboard-watchlist-card">
+
+            <div class="dashboard-card-header">
+                <div>
+                    <span class="dashboard-eyebrow">WATCHLIST</span>
+                    <h2>Keep an eye on</h2>
+                </div>
+            </div>
+
+
+            <div class="watchlist">
+
+                {% if watchlist %}
+
+                    {% for item in watchlist %}
+
+                        <div class="watchlist-item">
+
+                            <span class="watchlist-ticker">
+                                {{ item['ticker'] }}
+                            </span>
+
+                            <form
+                                method="POST"
+                                action="{{ url_for(
+                                    'delete_watchlist_ticker',
+                                    item_id=item['id']
+                                ) }}"
+                            >
+
+                                <input
+                                    type="hidden"
+                                    name="csrf_token"
+                                    value="{{ csrf_token() }}"
+                                >
+
+                                <button
+                                    type="submit"
+                                    class="watchlist-delete"
+                                    aria-label="Remove {{ item['ticker'] }}"
+                                    title="Remove {{ item['ticker'] }}"
+                                >
+                                    ×
+                                </button>
+
+                            </form>
+
+                        </div>
+
+                    {% endfor %}
+
+                {% else %}
+
+                    <div class="watchlist-empty">
+
+                        <p>Your watchlist is empty.</p>
+
+                        <span>
+                            Add a ticker to keep it close at hand.
+                        </span>
+
+                    </div>
+
+                {% endif %}
+
+
+                <form
+                    method="POST"
+                    action="{{ url_for('add_watchlist_ticker') }}"
+                    class="watchlist-add"
+                >
+
+                    <input
+                        type="hidden"
+                        name="csrf_token"
+                        value="{{ csrf_token() }}"
+                    >
+
+                    <input
+                        type="text"
+                        name="ticker"
+                        placeholder="Add ticker..."
+                        maxlength="20"
+                        autocomplete="off"
+                        spellcheck="false"
+                        aria-label="Ticker symbol"
+                    >
+
+                    <button type="submit">
+                        Add
+                    </button>
+
+                </form>
+
+            </div>
+
+        </div>
+
+        <div class="dashboard-card dashboard-month-card">
+
+            <div class="dashboard-card-header">
+                <div>
+                    <span class="dashboard-eyebrow">THIS MONTH</span>
+                    <h2>Monthly overview</h2>
+                </div>
+            </div>
+
+
+            {% if month.trade_count > 0 %}
+
+                <div class="month-summary">
+
+                    <div class="month-r {% if month.total_r > 0 %}positive{% elif month.total_r < 0 %}negative{% endif %}">
+                        {% if month.total_r > 0 %}+{% endif %}{{ "%.2f"|format(month.total_r) }}R
+                    </div>
+
+
+                    <div class="month-record">
+                        {{ month.trade_count }} trades ·
+                        {{ month.wins }} wins ·
+                        {{ month.losses }} losses
+                    </div>
+
+                </div>
+
+            {% else %}
+
+                <div class="dashboard-empty-state compact">
+
+                    <p>
+                        No trading activity this month yet.
+                    </p>
+
+                    <a href="{{ url_for('trades') }}"
+                       class="dashboard-text-link">
+                        Log your first trade →
+                    </a>
+
+                </div>
+
+            {% endif %}
+
+        </div>
+
+
+
+        <div class="dashboard-card dashboard-actions-card">
+
+            <div class="dashboard-card-header">
+                <div>
+                    <span class="dashboard-eyebrow">QUICK ACTIONS</span>
+                    <h2>What do you want to do?</h2>
+                </div>
+            </div>
+
+
+            <div class="dashboard-actions">
+
+                <a
+                    href="{{ url_for('trades') }}"
+                    class="dashboard-action-button"
+                >
+                    + Log Trade
+                </a>
+
+                <a
+                    href="{{ url_for('journal') }}"
+                    class="dashboard-action-button secondary"
+                >
+                    Journal
+                </a>
+
+                <a
+                    href="{{ url_for('analytics') }}"
+                    class="dashboard-action-button secondary"
+                >
+                    Analytics
+                </a>
+
+            </div>
+
+        </div>
+
+    </section>
+
+</main>
+
+
+<script>
+(function () {
+
+    const greetingElement =
+        document.getElementById('dashboard-greeting');
+
+    const dateElement =
+        document.getElementById('dashboard-date');
+
+    const displayName =
+        {{ display_name | tojson }};
+
+    const now = new Date();
+    const hour = now.getHours();
+
+    let greeting;
+
+    if (hour >= 5 && hour < 12) {
+        greeting = 'Good morning';
+    } else if (hour >= 12 && hour < 18) {
+        greeting = 'Good afternoon';
+    } else if (hour >= 18 && hour < 23) {
+        greeting = 'Good evening';
+    } else {
+        greeting = 'Good night';
+    }
+
+    greetingElement.textContent =
+        displayName
+            ? `${greeting}, ${displayName}`
+            : greeting;
+
+    dateElement.textContent =
+        now.toLocaleDateString(undefined, {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+
+})();
+</script>
+
+{% endblock %}
