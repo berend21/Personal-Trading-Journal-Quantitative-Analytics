@@ -13,6 +13,7 @@ DIRECTIONS = ("LONG", "SHORT")
 
 from analyze.statistics import (safe_float, roundit, percentage, calculate_streaks, calculate_drawdown)
 from analyze.confidence_interval import (confidence_interval, classify_confidence_interval)
+from analyze.distribution import calculate_r_distribution
 
 
 
@@ -597,16 +598,15 @@ def analytics():
         for row in rr_rows
     ]
 
+    r_distribution = calculate_r_distribution(
+        rr_sequence
+    )
+    
+
     expectancy_ci = confidence_interval(rr_sequence)
 
     expectancy_ci_classification = classify_confidence_interval(expectancy_ci)
-    print("DEBUG CI")
-    print("total trades:", total_trades)
-    print("overview closed:", overview_closed_count)
-    print("RR rows:", len(rr_rows))
-    print("RR sequence:", rr_sequence[:10])
-    print("CI:", expectancy_ci)
-
+ 
 
     rr_stddev = 0.0
 
@@ -626,12 +626,13 @@ def analytics():
         rr_sequence
     )
 
-    (
-        max_drawdown,
-        max_drawdown_pct,
-        equity_curve,
-        drawdown_curve,
-    ) = calculate_drawdown(rr_sequence)
+    drawdown = calculate_drawdown(rr_sequence)
+
+    max_drawdown = drawdown["max_drawdown"]
+    current_drawdown = drawdown["current_drawdown"]
+    equity_curve = drawdown["equity_curve"]
+    drawdown_curve = drawdown["drawdown_curve"]
+
 
 
     ticker_row = conn.execute(
@@ -1195,7 +1196,18 @@ def analytics():
         "rr_stddev": float(rr_stddev),
 
         "max_drawdown": float(max_drawdown),
-        "max_drawdown_pct": float(max_drawdown_pct),
+        "current_drawdown": float(current_drawdown),
+        "r_distribution": r_distribution,
+
+        "max_drawdown_duration": int(
+            drawdown["max_drawdown_duration"]
+        ),
+        "recovery_trades": (
+            int(drawdown["recovery_trades"])
+            if drawdown["recovery_trades"] is not None
+            else None
+        ),
+
 
         "max_win_streak": int(max_win_streak),
         "max_loss_streak": int(max_loss_streak),
@@ -1254,7 +1266,6 @@ def analytics():
             missing_close_time_count
         ),
     }
-
 
     return render_template(
     "analytics.html",
