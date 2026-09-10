@@ -381,6 +381,24 @@
 
 </section>
 
+<section class="analytics-section">
+
+    <div class="section-heading">
+        <div>
+            <h2>R Distribution</h2>
+            <p>Distribution of closed-trade R results.</p>
+        </div>
+    </div>
+
+    <div class="chart-panel">
+
+        <canvas id="rDistributionChart"></canvas>
+
+    </div>
+
+</section>
+
+
 
 
 <section class="analytics-section">
@@ -458,11 +476,31 @@
                 </div>
 
                 <div class="stats-row">
-                    <span class="label">Drawdown %</span>
-                    <span class="value">
-                        {{ "%.2f"|format(analytics_data.max_drawdown_pct) }}%
+                    <span class="label">Current Drawdown</span>
+                    <span class="value negative">
+                        {{ "%.2f"|format(analytics_data.current_drawdown) }}R
                     </span>
                 </div>
+
+                <div class="stats-row">
+                    <span class="label">Max DD Duration</span>
+                    <span class="value">
+                        {{ analytics_data.max_drawdown_duration }}
+                        trades
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Recovery</span>
+                    <span class="value">
+                        {% if analytics_data.recovery_trades is not none %}
+                            {{ analytics_data.recovery_trades }} trades
+                        {% else %}
+                            N/A
+                        {% endif %}
+                    </span>
+                </div>
+
 
                 <div class="stats-row">
                     <span class="label">R Std. Deviation</span>
@@ -1326,6 +1364,152 @@ document.addEventListener("DOMContentLoaded", function () {
         });
 
     }
+    const rDistributionCanvas =
+        document.getElementById('rDistributionChart');
+
+    if (rDistributionCanvas) {
+
+        const distributionLabels =
+            {{ analytics_data.r_distribution.labels | tojson }};
+
+        const distributionCounts =
+            {{ analytics_data.r_distribution.counts | tojson }};
+
+        const distributionColors =
+            distributionLabels.map(label => {
+
+                // Negative R ranges
+                if (
+                    label.includes('-')
+                ) {
+                    return '#ef4444';
+                }
+
+                // Exactly 0 R
+                if (
+                    label.trim() === '0'
+                ) {
+                    return '#94a3b8';
+                }
+
+                // Everything above 0 R
+                return '#22c55e';
+            });
+
+
+        new Chart(
+            rDistributionCanvas.getContext('2d'),
+            {
+
+                type: 'bar',
+
+                data: {
+
+                    labels: distributionLabels,
+
+                    datasets: [{
+
+                        label: 'Trades',
+
+                        data: distributionCounts,
+
+                        backgroundColor: distributionColors,
+
+                        borderColor: distributionColors,
+
+                        borderWidth: 1,
+
+                        borderRadius: 4,
+
+                        maxBarThickness: 25
+
+                    }]
+
+                },
+
+                options: {
+
+                    indexAxis: 'y',
+
+                    responsive: true,
+
+                    maintainAspectRatio: false,
+
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+
+                    plugins: {
+
+                        legend: {
+                            display: false
+                        },
+
+                        tooltip: {
+
+                            callbacks: {
+
+                                label: function(context) {
+                                    return ' ' + context.raw + ' trades';
+                                }
+
+                            }
+
+                        }
+
+                    },
+
+                    scales: {
+
+                        x: {
+
+                            beginAtZero: true,
+
+                            grid: {
+                                color: gridColor
+                            },
+
+                            ticks: {
+                                color: chartTextColor,
+                                precision: 0
+                            },
+
+                            title: {
+                                display: true,
+                                text: 'Number of Trades',
+                                color: chartTextColor
+                            }
+
+                        },
+
+                        y: {
+
+                            grid: {
+                                display: false
+                            },
+
+                            ticks: {
+                                color: chartTextColor
+                            },
+
+                            title: {
+                                display: true,
+                                text: 'R Result',
+                                color: chartTextColor
+                            }
+
+                        }
+
+                    }
+
+                }
+
+            }
+        );
+
+    }
+
 
 
     const equityCanvas = document.getElementById('equityChart');
