@@ -24,9 +24,10 @@ def _get_display_name():
         '''
         SELECT email, display_name
         FROM users
-        LIMIT 1
+        WHERE id = 1
         '''
     ).fetchone()
+
 
     if not row:
         return 'Trader'
