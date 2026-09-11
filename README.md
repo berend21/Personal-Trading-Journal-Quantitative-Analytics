@@ -19,7 +19,7 @@ STS is designed to help answer questions such as:
 - Is a losing trade actually a bad trade, or was it a good process with a bad outcome?
 
 
-
+Progress STS
 * Status: Personal / self-hosted
 * Stability: Beta
 * Database: SQLite
