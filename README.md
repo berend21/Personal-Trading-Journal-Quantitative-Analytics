@@ -20,7 +20,7 @@ STS is designed to help answer questions such as:
 
 
 
--- Status: Personal / self-hosted
+=> Status: Personal / self-hosted
 -- Stability: Beta
 -- Database: SQLite
 -- Primary unit: R
