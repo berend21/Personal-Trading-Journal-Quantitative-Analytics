@@ -46,35 +46,66 @@ def calculate_streaks(rr_values):
 
 
 def calculate_drawdown(rr_values):
-
     equity = 0.0
     peak = 0.0
+
     max_drawdown = 0.0
-    max_drawdown_pct = 0.0
+    current_drawdown = 0.0
 
     equity_curve = []
     drawdown_curve = []
 
+    max_drawdown_duration = 0
+    current_drawdown_duration = 0
+
+    recovery_trades = None
+    recovery_counter = None
+
     for rr in rr_values:
-        equity += safe_float(rr)
-        peak = max(peak, equity)
+        rr = safe_float(rr)
+
+        equity += rr
+
+        # New equity high
+        if equity >= peak:
+            peak = equity
+
+            # A drawdown has been fully recovered.
+            if recovery_counter is not None:
+                recovery_trades = recovery_counter + 1
+                recovery_counter = None
+
+            current_drawdown_duration = 0
+
+        else:
+            # Still below the previous equity peak.
+            current_drawdown_duration += 1
+
+            max_drawdown_duration = max(
+                max_drawdown_duration,
+                current_drawdown_duration,
+            )
+
+            if recovery_counter is None:
+                recovery_counter = 0
+
+            recovery_counter += 1
 
         drawdown = equity - peak
+
+        current_drawdown = drawdown
 
         if drawdown < max_drawdown:
             max_drawdown = drawdown
 
-        if peak > 0:
-            dd_pct = abs(drawdown) / peak * 100
-            max_drawdown_pct = max(max_drawdown_pct, dd_pct)
-
         equity_curve.append(round(equity, 4))
         drawdown_curve.append(round(drawdown, 4))
 
-    return (
-        round(max_drawdown, 2),
-        round(max_drawdown_pct, 2),
-        equity_curve,
-        drawdown_curve,
-    )
-
+    return {
+        "max_drawdown": round(max_drawdown, 2),
+        "current_drawdown": round(current_drawdown, 2),
+        "max_drawdown_duration": max_drawdown_duration,
+        "recovery_trades": recovery_trades,
+        "equity_curve": equity_curve,
+        "drawdown_curve": drawdown_curve,
+    }
