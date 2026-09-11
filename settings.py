@@ -6,7 +6,7 @@ from login import login_required
 import re
 
 
-APP_VERSION = "0.3.0"
+APP_VERSION = "0.4.0"
 BUILD_DATE = "June 2025"
 
 
