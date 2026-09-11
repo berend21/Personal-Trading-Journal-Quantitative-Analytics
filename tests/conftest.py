@@ -1,6 +1,6 @@
 import sqlite3
 import pytest
-import os
+
 
 @pytest.fixture
 def test_db(tmp_path):
@@ -44,12 +44,7 @@ def test_db(tmp_path):
 def flask_db(tmp_path, monkeypatch):
     db_path = tmp_path / "flask_test.db"
 
-
     monkeypatch.setattr("database.DATABASE", str(db_path))
-    monkeypatch.setenv("FLASK_SECRET_KEY", "test-secret-for-ci-only")
-
-    print("FLASK_SECRET_KEY =", os.environ.get("FLASK_SECRET_KEY"))
-
 
     import app as app_module
     from database import init_db
@@ -67,7 +62,6 @@ def flask_db(tmp_path, monkeypatch):
     yield db_path
 
 
-
 @pytest.fixture
 def client(flask_db):
     from extensions import app
@@ -77,13 +71,29 @@ def client(flask_db):
 
 
 @pytest.fixture
-def authenticated_client(client):
+def authenticated_client(client, flask_db):
+    conn = sqlite3.connect(flask_db)
+    conn.execute(
+        """
+        INSERT INTO users (id, email, password, display_name)
+        VALUES (1, ?, ?, ?)
+        """,
+        (
+            "test@example.com",
+            "test-password",
+            "Test User",
+        ),
+    )
+    conn.commit()
+    conn.close()
+
     with client.session_transaction() as session:
-        session["user_id"] = 1
-        session["username"] = "test@example.com"
+        session["authenticated"] = True
         session.permanent = True
 
     return client
+
+
 
 
 @pytest.fixture
@@ -94,3 +104,22 @@ def flask_connection(flask_db):
     yield conn
 
     conn.close()
+
+@pytest.fixture
+def client_with_user(client, flask_db):
+    conn = sqlite3.connect(flask_db)
+    conn.execute(
+        """
+        INSERT INTO users (id, email, password, display_name)
+        VALUES (1, ?, ?, ?)
+        """,
+        (
+            "test@example.com",
+            "test-password",
+            "Test User",
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    return client
