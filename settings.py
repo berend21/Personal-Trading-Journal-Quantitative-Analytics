@@ -1,6 +1,5 @@
-from flask import render_template, request, flash, redirect, url_for, session
+from flask import render_template, request, flash, redirect, url_for
 from werkzeug.security import generate_password_hash, check_password_hash
-from werkzeug.exceptions import BadRequest
 from extensions import app
 from database import get_db
 from login import login_required
@@ -24,17 +23,23 @@ def settings():
     conn = get_db()
 
     user = conn.execute(
-        'SELECT id, email, password, created_at FROM users WHERE email = ?',
-        (session['username'],)
+        '''
+        SELECT id, email, password, display_name, created_at
+        FROM users
+        WHERE id = 1
+        '''
     ).fetchone()
 
+
     if user is None:
-        session.clear()
-        flash('User account could not be found.', 'danger')
+        flash('Account could not be found.', 'danger')
         return redirect(url_for('login'))
 
     if request.method == 'POST':
         action = request.form.get('action')
+
+        if action == 'change_display_name':
+            return change_display_name(conn, user)
 
         if action == 'change_email':
             return change_email(conn, user)
@@ -87,22 +92,14 @@ def change_email(conn, user):
         flash('This is already your current email address.', 'info')
         return redirect(url_for('settings'))
 
-    existing_user = conn.execute(
-        'SELECT id FROM users WHERE email = ? AND id != ?',
-        (new_email, user['id'])
-    ).fetchone()
-
-    if existing_user:
-        flash('That email address is already in use.', 'danger')
-        return redirect(url_for('settings'))
 
     conn.execute(
-        'UPDATE users SET email = ? WHERE id = ?',
-        (new_email, user['id'])
+        'UPDATE users SET email = ? WHERE id = 1',
+        (new_email,)
     )
+
     conn.commit()
 
-    session['username'] = new_email
 
     flash('Email updated successfully!', 'success')
     return redirect(url_for('settings'))
@@ -117,8 +114,8 @@ def change_password(conn, user):
         flash('Current password is incorrect.', 'danger')
         return redirect(url_for('settings'))
 
-    if len(new_password) < 7:
-        flash('New password must be at least 7 characters long.', 'danger')
+    if len(new_password) < 12:
+        flash('New password must be at least 12 characters long.', 'danger')
         return redirect(url_for('settings'))
 
     if new_password != confirm_password:
@@ -132,9 +129,10 @@ def change_password(conn, user):
     hashed_password = generate_password_hash(new_password)
 
     conn.execute(
-        'UPDATE users SET password = ? WHERE id = ?',
-        (hashed_password, user['id'])
+        'UPDATE users SET password = ? WHERE id = 1',
+        (hashed_password,)
     )
+
     conn.commit()
 
     flash('Password changed successfully!', 'success')
@@ -249,3 +247,24 @@ def toggle_trade_type_setup(conn):
     flash('Trade type setup status updated!', 'success')
     return redirect(url_for('settings'))
 
+def change_display_name(conn, user):
+    display_name = request.form.get('display_name', '').strip()
+
+    if len(display_name) > 50:
+        flash('Display name cannot exceed 50 characters.', 'danger')
+        return redirect(url_for('settings'))
+
+    conn.execute(
+        '''
+        UPDATE users
+        SET display_name = ?
+        WHERE id = 1
+        ''',
+        (display_name or None,)
+    )
+
+
+    conn.commit()
+
+    flash('Display name updated successfully!', 'success')
+    return redirect(url_for('settings'))
