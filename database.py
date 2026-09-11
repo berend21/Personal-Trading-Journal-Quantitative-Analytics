@@ -106,7 +106,7 @@ def init_db():
 
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id INTEGER PRIMARY KEY CHECK (id=1),
                 email TEXT UNIQUE NOT NULL,
                 password TEXT NOT NULL,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
