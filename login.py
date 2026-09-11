@@ -1,6 +1,6 @@
 from functools import wraps
 
-from flask import render_template, flash, session, redirect, url_for, request
+from flask import render_template, flash, session, redirect, url_for
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Email, Length
@@ -23,7 +23,7 @@ class SetupForm(FlaskForm):
         'Password',
         validators=[DataRequired(), Length(min=12)]
     )
-    submit = SubmitField('Create Account')
+    submit = SubmitField('Complete Setup')
 
 @app.route('/setup', methods=['GET', 'POST'])
 @limiter.limit("5 per minute")
@@ -31,13 +31,14 @@ class SetupForm(FlaskForm):
 def setup():
     conn = get_db()
 
-    # Setup is only available when there are no users.
-    user_count = conn.execute(
-        'SELECT COUNT(*) FROM users'
-    ).fetchone()[0]
+    # Setup is only available before the single owner account exists.
+    account_exists = conn.execute(
+        'SELECT 1 FROM users WHERE id = 1'
+    ).fetchone()
 
-    if user_count > 0:
+    if account_exists:
         return redirect(url_for('login'))
+
 
     form = SetupForm()
 
@@ -48,9 +49,13 @@ def setup():
         password_hash = generate_password_hash(password)
 
         conn.execute(
-            'INSERT INTO users (email, password) VALUES (?, ?)',
+            '''
+            INSERT INTO users (id, email, password)
+            VALUES (1, ?, ?)
+            ''',
             (email, password_hash)
         )
+
         conn.commit()
 
         flash('Account created successfully. You can now log in.', 'success')
@@ -71,12 +76,19 @@ def login():
         password = form.password.data
 
         conn = get_db()
-        user = conn.execute('SELECT * FROM users WHERE email = ?',(email,) ).fetchone()
+        user = conn.execute(
+            '''
+            SELECT *
+            FROM users
+            WHERE id = 1
+            '''
+        ).fetchone()
 
-        if user and check_password_hash(user['password'], password):
+
+        if (user and user['email'].lower() == email and check_password_hash(user['password'], password)):
+
             session.clear()
-            session['user_id'] = user['id']
-            session['username'] = email
+            session['authenticated'] = True
             session.permanent = True
 
             return redirect(url_for('dashboard'))
@@ -97,19 +109,21 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
 
-        if not session.get('user_id'):
-            conn = get_db()
+        if session.get('authenticated'):
+            return f(*args, **kwargs)
 
-            user_count = conn.execute(
-                'SELECT COUNT(*) FROM users'
-            ).fetchone()[0]
+        conn = get_db()
 
-            if user_count == 0:
-                return redirect(url_for('setup'))
+        account_exists = conn.execute(
+            'SELECT 1 FROM users WHERE id = 1'
+        ).fetchone()
 
-            return redirect(url_for('login'))
+        if not account_exists:
+            return redirect(url_for('setup'))
 
-        return f(*args, **kwargs)
+        return redirect(url_for('login'))
+
+
 
     return decorated_function
 
