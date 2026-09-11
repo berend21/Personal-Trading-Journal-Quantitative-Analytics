@@ -20,14 +20,14 @@ STS is designed to help answer questions such as:
 
 
 
-=> Status: Personal / self-hosted
--- Stability: Beta
--- Database: SQLite
--- Primary unit: R
--- Authentication: Yes
--- Broker sync: No
--- Execution: No
--- Backtesting: No
+* Status: Personal / self-hosted
+* Stability: Beta
+* Database: SQLite
+* Primary unit: R
+* Authentication: Yes
+* Broker sync: No
+* Execution: No
+* Backtesting: No
 
 ---
 
