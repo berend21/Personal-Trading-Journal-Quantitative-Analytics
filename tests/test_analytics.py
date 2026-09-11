@@ -72,26 +72,49 @@ class TestDrawdown:
             [1, 1, -1, -2, 1]
         )
 
-        max_drawdown, max_drawdown_pct, equity, drawdown = result
-
-        assert max_drawdown == -3.0
-        assert equity == [1.0, 2.0, 1.0, -1.0, 0.0]
-        assert drawdown == [0.0, 0.0, -1.0, -3.0, -2.0]
+        assert result["max_drawdown"] == -3.0
+        assert result["equity_curve"] == [
+            1.0,
+            2.0,
+            1.0,
+            -1.0,
+            0.0,
+        ]
+        assert result["drawdown_curve"] == [
+            0.0,
+            0.0,
+            -1.0,
+            -3.0,
+            -2.0,
+        ]
 
     def test_no_drawdown(self):
         result = calculate_drawdown(
             [1, 2, 3]
         )
 
-        max_drawdown, max_drawdown_pct, equity, drawdown = result
-
-        assert max_drawdown == 0.0
-        assert max_drawdown_pct == 0.0
+        assert result["max_drawdown"] == 0.0
+        assert result["current_drawdown"] == 0.0
+        assert result["equity_curve"] == [
+            1.0,
+            3.0,
+            6.0,
+        ]
+        assert result["drawdown_curve"] == [
+            0.0,
+            0.0,
+            0.0,
+        ]
 
     def test_empty_sequence(self):
         result = calculate_drawdown([])
 
-        assert result == (0.0, 0.0, [], [])
+        assert result["max_drawdown"] == 0.0
+        assert result["current_drawdown"] == 0.0
+        assert result["max_drawdown_duration"] == 0
+        assert result["recovery_trades"] is None
+        assert result["equity_curve"] == []
+        assert result["drawdown_curve"] == []
 
 
 class TestDateRange:
