@@ -18,17 +18,6 @@ STS is designed to help answer questions such as:
 - What patterns appear in my winning and losing trades?
 - Is a losing trade actually a bad trade, or was it a good process with a bad outcome?
 
-
-Progress STS
-* Status: Personal / self-hosted
-* Stability: Beta
-* Database: SQLite
-* Primary unit: R
-* Authentication: Yes
-* Broker sync: No
-* Execution: No
-* Backtesting: No
-
 ---
 
 # Why R Instead of Money?
@@ -370,6 +359,17 @@ pytest
 The testing strategy focuses particularly on areas where incorrect calculations could affect historical performance data, including R-multiple calculations and partial-position accounting.
 
 # Roadmap
+
+Progress STS
+* Status: Personal / self-hosted
+* Stability: Beta
+* Database: SQLite
+* Primary unit: R
+* Authentication: Yes
+* Broker sync: No
+* Execution: No
+* Backtesting: No
+
 The project is actively evolving. Areas I intend to improve include:
 
 - Automated database backups
