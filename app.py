@@ -1,5 +1,4 @@
 from flask import render_template, request, redirect, url_for, flash, session, send_file, jsonify, g
-import sqlite3
 import os
 
 from functools import wraps
@@ -8,11 +7,9 @@ from datetime import datetime, timedelta
 
 from flask_wtf.csrf import CSRFProtect, CSRFError
 from PIL import Image
-import io
 
 import logging
 from logging.handlers import RotatingFileHandler
-import json
 from extensions import app
 
 from flask_limiter import Limiter
@@ -49,6 +46,21 @@ from knowledge import *
 from settings import *
 from todo import *
 from trades import *
+from symbol_icons import get_symbol_icon
+
+@app.before_request
+def load_current_user():
+    g.user = None
+
+    if session.get('authenticated'):
+        g.user = get_db().execute(
+            '''
+            SELECT id, email, display_name, created_at
+            FROM users
+            WHERE id = 1
+            '''
+        ).fetchone()
+
 
 
 @app.context_processor
