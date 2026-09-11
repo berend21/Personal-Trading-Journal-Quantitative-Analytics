@@ -18,14 +18,16 @@ STS is designed to help answer questions such as:
 - What patterns appear in my winning and losing trades?
 - Is a losing trade actually a bad trade, or was it a good process with a bad outcome?
 
-Status: Personal / self-hosted
-Stability: Beta
-Database: SQLite
-Primary unit: R
-Authentication: Yes
-Broker sync: No
-Execution: No
-Backtesting: No
+
+
+-- Status: Personal / self-hosted
+-- Stability: Beta
+-- Database: SQLite
+-- Primary unit: R
+-- Authentication: Yes
+-- Broker sync: No
+-- Execution: No
+-- Backtesting: No
 
 ---
 
