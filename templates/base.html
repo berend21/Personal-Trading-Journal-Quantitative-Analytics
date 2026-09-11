@@ -66,7 +66,7 @@
 
                 {{ nav_link('home.webp', 'Dashboard', 'dashboard') }}
                 {{ nav_link('chart.webp', 'Trades', 'trades')}}
-                {{ nav_link('spot.webp', 'Spot', 'spot')}}
+                {# {{ nav_link('spot.webp', 'Spot', 'spot') }} #}
                 {{ nav_link('journal.webp', 'Journal', 'journal') }}
                 {{ nav_link('analysis.webp', 'Analytics', 'analytics') }}
                 {{ nav_link('rules.webp', 'Rules', 'rules') }}
@@ -77,16 +77,19 @@
                 {{ nav_link('settings.webp', 'Settings', 'settings') }}
             </div>
             <hr class="navbar-divider-user" aria-hidden="true">
-            {% if session.get('user_id') %}
+            {% if session.get('authenticated') and g.user %}
                 <div class="nav-user" role="group" aria-label="User account">
                     <div class="user-header">
                         <div class="user-avatar">
-                            <span class="user-initial">{{ session.get('username', '?')[0].upper() }}</span>
+                            <span class="user-initial">
+                                {{ (g.user['display_name'] or g.user['email'])[0].upper() }}
+                            </span>
                         </div>
 
                         <div class="user-details">
-                            <div class="username">{{ session.get('username', '') }}</div>
-
+                            <div class="username">
+                                {{ g.user['display_name'] or g.user['email'] }}
+                            </div>
                             <div class="user-status">
                                 <span class="status-dot"></span>
                                 <span class="status-text">Active</span>
@@ -169,6 +172,7 @@
                 themeForm.submit();
             });
         });
+
 
         if (toggleBtn) {
             toggleBtn.addEventListener('click', (e) => {
