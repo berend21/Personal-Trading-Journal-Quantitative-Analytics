@@ -17,6 +17,7 @@ def confidence_interval(values, confidence=0.95):
         return None
 
     if any(
+        
         not isinstance(value, (int, float))
         or not math.isfinite(value)
         for value in values
@@ -54,8 +55,10 @@ def confidence_interval(values, confidence=0.95):
     }
 def classify_confidence_interval(result):
 
-
     if result is None:
+        return "insufficient_data"
+
+    if result["n"] < 10:
         return "insufficient_data"
 
     if result["lower"] > 0:
@@ -65,3 +68,18 @@ def classify_confidence_interval(result):
         return "negative"
 
     return "inconclusive"
+
+
+
+def classify_sample_size(n):
+
+    if n < 10:
+        return "very_low"
+
+    if n < 30:
+        return "low"
+
+    if n < 100:
+        return "moderate"
+
+    return "high"
