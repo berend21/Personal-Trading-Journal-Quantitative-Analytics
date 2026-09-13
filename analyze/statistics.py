@@ -1,3 +1,6 @@
+import statistics 
+import math
+from analyze.expectancy import calculate_expectancy
 
 def safe_float(value, default=0.0):
     try:
@@ -108,4 +111,201 @@ def calculate_drawdown(rr_values):
         "recovery_trades": recovery_trades,
         "equity_curve": equity_curve,
         "drawdown_curve": drawdown_curve,
+    }
+
+
+
+def calculate_profit_factor(gross_profit, gross_loss):
+    gross_profit = safe_float(gross_profit)
+    gross_loss = safe_float(gross_loss)
+
+    if gross_loss <= 0:
+        return None
+
+    return round(gross_profit / gross_loss, 2)
+
+def calculate_median(values):
+
+    if not values:
+        return None
+
+    return statistics.median(values)
+
+def calculate_standard_deviation(values):
+
+    if len(values) < 2:
+        return 0.0
+
+    mean = sum(values) / len(values)
+
+    variance = sum(
+        (value - mean) ** 2
+        for value in values
+    ) / (len(values) - 1)
+
+    return round(math.sqrt(variance), 2)
+
+def calculate_payoff_ratio(average_win, average_loss):
+
+    if average_win is None or average_loss is None:
+        return None
+
+    if average_loss >= 0:
+        return None
+
+    return round(
+        average_win / abs(average_loss),
+        2,
+    )
+def calculate_win_rate(wins, total):
+    if total <= 0:
+        return 0.0
+
+    return round((wins / total) * 100, 2)
+def calculate_trade_statistics(rr_sequence):
+    if not rr_sequence:
+        return {
+            "closed_count": 0,
+            "win_count": 0,
+            "loss_count": 0,
+            "breakeven_count": 0,
+            "total_rr": 0.0,
+            "average_rr": 0.0,
+            "highest_rr": None,
+            "lowest_rr": None,
+            "average_win": 0.0,
+            "average_loss": 0.0,
+            "gross_profit": 0.0,
+            "gross_loss": 0.0,
+            "win_rate": 0.0,
+            "loss_rate": 0.0,
+            "breakeven_rate": 0.0,
+            "profit_factor": None,
+            "payoff_ratio": None,
+            "median_rr": None,
+            "expectancy": 0.0,
+            "rr_stddev": 0.0,
+        }
+
+    wins = [
+        rr for rr in rr_sequence
+        if rr > 0
+    ]
+
+    losses = [
+        rr for rr in rr_sequence
+        if rr < 0
+    ]
+
+    breakevens = [
+        rr for rr in rr_sequence
+        if rr == 0
+    ]
+
+    closed_count = len(rr_sequence)
+
+    gross_profit = sum(wins)
+    gross_loss = sum(
+        abs(rr)
+        for rr in losses
+    )
+
+    average_win = (
+        sum(wins) / len(wins)
+        if wins
+        else 0.0
+    )
+
+    average_loss = (
+        sum(losses) / len(losses)
+        if losses
+        else 0.0
+    )
+
+    total_rr = sum(rr_sequence)
+
+    average_rr = (
+        total_rr / closed_count
+        if closed_count
+        else 0.0
+    )
+
+    expectancy = calculate_expectancy(
+        rr_sequence
+    )
+
+    return {
+        "closed_count": closed_count,
+
+        "win_count": len(wins),
+        "loss_count": len(losses),
+        "breakeven_count": len(breakevens),
+
+        "total_rr": roundit(total_rr),
+        "average_rr": roundit(average_rr),
+
+        "highest_rr": roundit(
+            max(rr_sequence)
+        ),
+
+        "lowest_rr": roundit(
+            min(rr_sequence)
+        ),
+
+        "average_win": roundit(
+            average_win
+        ),
+
+        "average_loss": roundit(
+            average_loss
+        ),
+
+        "gross_profit": roundit(
+            gross_profit
+        ),
+
+        "gross_loss": roundit(
+            gross_loss
+        ),
+
+        "win_rate": percentage(
+            len(wins),
+            closed_count,
+        ),
+
+        "loss_rate": percentage(
+            len(losses),
+            closed_count,
+        ),
+
+        "breakeven_rate": percentage(
+            len(breakevens),
+            closed_count,
+        ),
+
+        "profit_factor": calculate_profit_factor(
+            gross_profit,
+            gross_loss,
+        ),
+
+        "payoff_ratio": calculate_payoff_ratio(
+            average_win,
+            average_loss,
+        ),
+
+        "median_rr": (
+            roundit(calculate_median(rr_sequence))
+            if rr_sequence
+            else None
+        ),
+
+        "expectancy": (
+            roundit(expectancy)
+            if expectancy is not None
+            else 0.0
+        ),
+
+        "rr_stddev": calculate_standard_deviation(
+            rr_sequence
+        ),
     }
