@@ -52,7 +52,7 @@ def create_note(conn, form):
 
     conn.execute(
         '''
-        INSERT INTO notes1 (title, content, color)
+        INSERT INTO notes (title, content, color)
         VALUES (?, ?, ?)
         ''',
         (title, content, color)
@@ -82,7 +82,7 @@ def update_note(conn, form):
 
     cursor = conn.execute(
         '''
-        UPDATE notes1
+        UPDATE notes
         SET title=?,
             content=?,
             color=?,
@@ -103,7 +103,7 @@ def delete_note(conn, form):
     note_id = get_note_id(form)
 
     cursor = conn.execute(
-        'DELETE FROM notes1 WHERE id=?',
+        'DELETE FROM notes WHERE id=?',
         (note_id,)
     )
 
@@ -125,7 +125,7 @@ def toggle_pin(conn, form):
 
     cursor = conn.execute(
         '''
-        UPDATE notes1
+        UPDATE notes
         SET pinned=?
         WHERE id=?
         ''',
@@ -145,7 +145,7 @@ def get_notes(conn, search=''):
         return conn.execute(
             '''
             SELECT *
-            FROM notes1
+            FROM notes
             WHERE title LIKE ?
                OR content LIKE ?
             ORDER BY pinned DESC, updated_at DESC
@@ -156,7 +156,7 @@ def get_notes(conn, search=''):
     return conn.execute(
         '''
         SELECT *
-        FROM notes1
+        FROM notes
         ORDER BY pinned DESC, updated_at DESC
         '''
     ).fetchall()
