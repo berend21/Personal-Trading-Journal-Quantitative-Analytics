@@ -194,7 +194,7 @@ def init_db():
         ##rules
         ##todo
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS todos1 (
+            CREATE TABLE IF NOT EXISTS todos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 list_type TEXT NOT NULL, -- 'ticker' or 'todo'
                 content TEXT NOT NULL,
@@ -203,7 +203,7 @@ def init_db():
         ''')
         ###notes
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS notes1 (
+            CREATE TABLE IF NOT EXISTS notes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 title TEXT,
                 content TEXT NOT NULL,
@@ -255,13 +255,13 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_knowledge_type_created ON knowledge_articles(type, created_at DESC);
             
             -- Notes
-            CREATE INDEX IF NOT EXISTS idx_notes_pinned_updated ON notes1(pinned DESC, updated_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_notes_pinned_updated ON notes(pinned DESC, updated_at DESC);
             
             -- Journal entries
             CREATE INDEX IF NOT EXISTS idx_journal_date_type ON journal_entries(date, entry_type);
             
             -- Todos
-            CREATE INDEX IF NOT EXISTS idx_todos_type ON todos1(list_type);
+            CREATE INDEX IF NOT EXISTS idx_todos_type ON todos(list_type);
         """)
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS trading_rules (
