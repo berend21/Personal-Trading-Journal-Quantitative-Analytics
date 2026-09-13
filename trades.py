@@ -660,7 +660,7 @@ def edit_trade(user_id):
             recalculate_parent(conn, current['parent_id'])
 
 
-        conn.comit()
+        conn.commit()
         return {'success': True}
     
     except Exception as e:
