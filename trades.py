@@ -1,4 +1,4 @@
-from flask import render_template, request, flash, redirect, url_for, jsonify, session, json
+from flask import render_template, request, flash, redirect, url_for, json
 from extensions import app
 from database import get_db
 from login import login_required
@@ -7,7 +7,8 @@ import os
 import time
 from werkzeug.utils import secure_filename
 from PIL import Image
-import math
+from utils.trade_calculations import calculate_parent_rr_with_partials, calculate_r_multiple, recalculate_parent, parse_float, parse_time
+
 
 
 MAX_REASON_LEN = 4000
@@ -450,36 +451,38 @@ def edit_trade(user_id):
         else:
             type_setup_json = current['type_setup']
 
-            if 'confidence' in request.form:
-                if confidence:
-                    try:
-                        confidence = int(confidence)
-                    except ValueError:
-                        return {
-                            'success': False,
-                            'message': 'Confidence must be a number between 1 and 10.'
-                        }
 
-                    if confidence < 1 or confidence > 10:
-                        return {
-                            'success': False,
-                            'message': 'Confidence must be between 1 and 10.'
-                        }
-                else:
-                    confidence = None
-            else:
-                confidence = current['confidence']
-
-            if 'setup' in request.form:
-                if setup and setup not in ('A+', 'A', 'B', 'C'):
+        if 'confidence' in request.form:
+            if confidence:
+                try:
+                    confidence = int(confidence)
+                except ValueError:
                     return {
                         'success': False,
-                        'message': 'Invalid setup.'
+                        'message': 'Confidence must be a number between 1 and 10.'
                     }
 
-                setup = setup if setup else None
+                if confidence < 1 or confidence > 10:
+                    return {
+                        'success': False,
+                        'message': 'Confidence must be between 1 and 10.'
+                    }
             else:
-                setup = current['setup']
+                confidence = None
+        else:
+            confidence = current['confidence']
+
+
+        if 'setup' in request.form:
+            if setup and setup not in ('A+', 'A', 'B', 'C'):
+                return {
+                    'success': False,
+                    'message': 'Invalid setup.'
+                }
+
+            setup = setup if setup else None
+        else:
+            setup = current['setup']
 
 
 
@@ -654,30 +657,13 @@ def edit_trade(user_id):
 
         conn.execute('''UPDATE trades SET symbol=?, open_time=?, close_time=?, type=?, type_setup=?, confidence=?, setup=?, status=?, sort=?, open_price=?, close_price=?, risk=?, SL=?, TP=?, RR=?, reason=?, feedback=?, risk_action=? WHERE id=?''', 
                     (symbol, open_time, close_time, type, type_setup_json, confidence, setup, status, sort, open_price, close_price, risk, SL, TP, RR, reason, feedback, risk_action, user_id))
-        updated = conn.execute(
-            'SELECT status, close_price, close_time FROM trades WHERE id=?',
-            (user_id,)
-        ).fetchone()
-
-
-        check = conn.execute(
-            "SELECT id, status, close_price, close_time FROM trades WHERE id=?",
-            (user_id,)
-        ).fetchone()
-
-
+ 
         if current['parent_id']:
             recalculate_parent(conn, current['parent_id'])
-
-        
         conn.commit()
-        check = conn.execute(
-            "SELECT id, status, close_price, close_time FROM trades WHERE id=?",
-            (user_id,)
-        ).fetchone()
 
-        conn.comit()
         return {'success': True}
+    
     
     except Exception as e:
         conn.rollback()
@@ -1118,19 +1104,16 @@ def user_detail(user_id):
 
     active_type_setups = get_active_trade_type_setups()
 
-    # Parse existing type setups for the template
     selected_type_setups = parse_type_setup(user['type_setup'])
 
     if request.method == 'POST':
         reason = request.form.get('reason', user['reason'])
         feedback = request.form.get('feedback', user['feedback'])
 
-        # Setup fields
         type_setup = request.form.getlist('type_setup')
         confidence = request.form.get('confidence', '').strip()
         setup = request.form.get('setup', '').strip()
 
-        # Validate type setups
         invalid_type_setups = [
             value for value in type_setup
             if value not in active_type_setups
@@ -1142,7 +1125,6 @@ def user_detail(user_id):
 
         type_setup_json = json.dumps(type_setup)
 
-        # Validate confidence
         if confidence:
             try:
                 confidence = int(confidence)
@@ -1156,14 +1138,12 @@ def user_detail(user_id):
         else:
             confidence = None
 
-        # Validate setup
         if setup and setup not in ('A+', 'A', 'B', 'C'):
             flash('Invalid setup.', 'error')
             return redirect(url_for('user_detail', user_id=user_id))
 
         setup = setup if setup else None
 
-        # Images
         delete_reason = request.form.get('delete_reason_image') == 'true'
         delete_feedback = request.form.get('delete_feedback_image') == 'true'
 
@@ -1173,7 +1153,6 @@ def user_detail(user_id):
         reason_image_filename = user['reason_image']
         feedback_image_filename = user['feedback_image']
 
-        # Reason image
         if delete_reason:
             if user['reason_image']:
                 try:
@@ -1317,252 +1296,9 @@ def user_detail(user_id):
         selected_type_setups=selected_type_setups
     )
 
-def calculate_r_multiple(sort, open_price, close_price, stop_loss):
-    if None in (open_price, close_price, stop_loss):
-        return None
-
-    try:
-        open_price = float(open_price)
-        close_price = float(close_price)
-        stop_loss = float(stop_loss)
-    except (TypeError, ValueError):
-        return None
-
-    sort = (sort or "").upper()
-
-    if sort == "SHORT":
-        risk_per_unit = stop_loss - open_price
-        profit_per_unit = open_price - close_price
-
-    elif sort == "LONG":
-        risk_per_unit = open_price - stop_loss
-        profit_per_unit = close_price - open_price
-
-    else:
-        return None
-
-    if risk_per_unit <= 0:
-        return None
-
-    return profit_per_unit / risk_per_unit
-
-def calculate_parent_rr_with_partials(parent, partials):
-    total_weighted_r = 0.0
-    total_closed_risk = 0.0
-
-    for partial in partials:
-        if partial['risk_action'] != 'CLOSE':
-            continue
-
-        if partial['risk'] is None:
-            continue
-
-        if partial['RR'] is None:
-            continue
-
-        risk = float(partial['risk'])
-        rr = float(partial['RR'])
-
-        if risk <= 0:
-            continue
-
-        total_weighted_r += rr * risk
-        total_closed_risk += risk
-
-    if total_closed_risk <= 0:
-        return 0.0
-
-    return round(total_weighted_r / total_closed_risk, 8)
-
-
-
-def parse_time(s):
-    if not s:
-        return None
-    s = s.replace('T', ' ').strip()
-    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"):
-        try:
-            return datetime.strptime(s, fmt)
-        except ValueError:
-            continue
-    return None
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def parse_float(value, field_name):
-    if value is None:
-        return None
-
-    if isinstance(value, str):
-        value = value.strip()
-        if value == '':
-            return None
-
-    try:
-        return float(value)
-    except (ValueError, TypeError):
-        raise ValueError(f'{field_name} must be a valid number.')
-
-
-
-def recalculate_parent(conn, parent_id):
-    parent = conn.execute(
-        'SELECT * FROM trades WHERE id=?',
-        (parent_id,)
-    ).fetchone()
-
-    if not parent:
-        return None
-
-    children = conn.execute(
-        '''
-        SELECT *
-        FROM trades
-        WHERE parent_id=?
-        ORDER BY id
-        ''',
-        (parent_id,)
-    ).fetchall()
-
-
-    if not children:
-
-        if parent['initial_risk'] is not None:
-
-            initial_risk = float(parent['initial_risk'] or 0)
-
-            conn.execute(
-                '''
-                UPDATE trades
-                SET risk=?,
-                    RR=?,
-                    status=?,
-                    close_time=?
-                WHERE id=?
-                ''',
-                (
-                    round(initial_risk, 8),
-                    0.0,
-                    'OPEN',
-                    None,
-                    parent_id
-                )
-            )
-
-            return {
-                'current_risk': round(initial_risk, 8),
-                'total_committed_risk': round(initial_risk, 8),
-                'closed_risk': 0.0,
-                'added_risk': 0.0,
-                'realized_r': 0.0,
-                'status': 'OPEN',
-                'close_time': None
-            }
-
-        # OLD TRADE
-        # No initial_risk means this is an old trade.
-        return {
-            'current_risk': float(parent['risk'] or 0),
-            'total_committed_risk': float(parent['risk'] or 0),
-            'closed_risk': 0.0,
-            'added_risk': 0.0,
-            'realized_r': float(parent['RR'] or 0),
-            'status': parent['status'],
-            'close_time': parent['close_time']
-        }
-
-    # OLD TRADES
-    # Keep the existing old-trade accounting untouched for now. There is no initial_risk
-    if parent['initial_risk'] is None:
-        return {
-            'current_risk': float(parent['risk'] or 0),
-            'total_committed_risk': float(parent['risk'] or 0),
-            'closed_risk': 0.0,
-            'added_risk': 0.0,
-            'realized_r': float(parent['RR'] or 0),
-            'status': parent['status'],
-            'close_time': parent['close_time']
-        }
-    # NEW TRADES
-
-    initial_risk = float(parent['initial_risk'] or 0)
-
-    added_risk = 0.0
-    closed_risk = 0.0
-    realized_r = 0.0
-
-    last_close_time = None
-
-    for child in children:
-
-        risk = float(child['risk'] or 0)
-
-        if child['risk_action'] == 'OPEN':
-            added_risk += risk
-
-        elif child['risk_action'] == 'CLOSE':
-            closed_risk += risk
-
-            if child['RR'] is not None:
-                realized_r += float(child['RR']) * risk
-
-            if child['close_time']:
-                if (
-                    last_close_time is None
-                    or child['close_time'] > last_close_time
-                ):
-                    last_close_time = child['close_time']
-
-    total_committed_risk = initial_risk + added_risk
-
-    current_risk = total_committed_risk - closed_risk
-
-    if current_risk < -0.00000001:
-        raise ValueError(
-            f'Parent {parent_id}: closed risk '
-            f'({closed_risk}) exceeds committed risk '
-            f'({total_committed_risk}).'
-        )
-
-    current_risk = max(0.0, current_risk)
-
-    if current_risk <= 0:
-        status = 'CLOSED'
-        close_time = last_close_time or parent['close_time']
-    else:
-        status = 'OPEN'
-        close_time = None
-
-    realized_r = round(realized_r, 8)
-
-    conn.execute(
-        '''
-        UPDATE trades
-        SET risk=?,
-            RR=?,
-            status=?,
-            close_time=?
-        WHERE id=?
-        ''',
-        (
-            round(current_risk, 8),
-            realized_r,
-            status,
-            close_time,
-            parent_id
-        )
-    )
-
-    return {
-        'current_risk': round(current_risk, 8),
-        'total_committed_risk': round(total_committed_risk, 8),
-        'closed_risk': round(closed_risk, 8),
-        'added_risk': round(added_risk, 8),
-        'realized_r': realized_r,
-        'status': status,
-        'close_time': close_time
-    }
 
 
 def get_active_trade_type_setups():
@@ -1587,6 +1323,4 @@ def parse_type_setup(value):
         return parsed if isinstance(parsed, list) else []
     except (json.JSONDecodeError, TypeError):
         return []
-
-
 
