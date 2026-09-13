@@ -450,36 +450,36 @@ def edit_trade(user_id):
         else:
             type_setup_json = current['type_setup']
 
-            if 'confidence' in request.form:
-                if confidence:
-                    try:
-                        confidence = int(confidence)
-                    except ValueError:
-                        return {
-                            'success': False,
-                            'message': 'Confidence must be a number between 1 and 10.'
-                        }
-
-                    if confidence < 1 or confidence > 10:
-                        return {
-                            'success': False,
-                            'message': 'Confidence must be between 1 and 10.'
-                        }
-                else:
-                    confidence = None
-            else:
-                confidence = current['confidence']
-
-            if 'setup' in request.form:
-                if setup and setup not in ('A+', 'A', 'B', 'C'):
+        if 'confidence' in request.form:
+            if confidence:
+                try:
+                    confidence = int(confidence)
+                except ValueError:
                     return {
                         'success': False,
-                        'message': 'Invalid setup.'
+                        'message': 'Confidence must be a number between 1 and 10.'
                     }
 
-                setup = setup if setup else None
+                if confidence < 1 or confidence > 10:
+                    return {
+                        'success': False,
+                        'message': 'Confidence must be between 1 and 10.'
+                    }
             else:
-                setup = current['setup']
+                confidence = None
+        else:
+            confidence = current['confidence']
+
+        if 'setup' in request.form:
+            if setup and setup not in ('A+', 'A', 'B', 'C'):
+                return {
+                    'success': False,
+                    'message': 'Invalid setup.'
+                }
+
+            setup = setup if setup else None
+        else:
+            setup = current['setup']
 
 
 
@@ -520,12 +520,16 @@ def edit_trade(user_id):
             return {'success': False, 'message': str(e)}
 
         if risk is None:
-            flash('Risk is required.', 'error')
-            return redirect(url_for('trades'))
+            return {
+                'success': False,
+                'message': 'Risk is required.'
+            }
 
         if risk <= 0:
-            flash('Risk must be greater than 0.', 'error')
-            return redirect(url_for('trades'))
+            return {
+                'success': False,
+                'message': 'Risk must be greater than 0.'
+            }
 
 
         if open_price is not None and SL is not None:
@@ -665,8 +669,9 @@ def edit_trade(user_id):
     
     except Exception as e:
         conn.rollback()
+        app.logger.exception("Unexpected error while editing trade")
 
-        return {'success': False, 'message': str(e)}
+        return {'success': False, 'message': 'An unexpected error occurred while saving the trade.'}
 
 
 
@@ -762,9 +767,15 @@ def partial_close_inline(parent_id):
                 return redirect(url_for('trades'))
 
 
-        risk = request.form.get('risk')
+        risk_raw = request.form.get('risk')
         status = request.form.get('status', '').upper()
-        risk = float(risk) if risk else None
+
+        try:
+            risk = parse_float(risk_raw, 'Risk')
+        except ValueError as e:
+            flash(str(e), 'error')
+            return redirect(url_for('trades'))
+
 
         reason = request.form.get('reason', '')
         feedback = request.form.get('feedback', '')
@@ -793,10 +804,40 @@ def partial_close_inline(parent_id):
             return redirect(url_for('trades'))
 
         if status == 'OPEN':
-            open_price = request.form.get('open_price')
+            open_price_raw = request.form.get('open_price')
             open_time = request.form.get('open_time')
-            open_price = float(open_price) if open_price else None
+
+            try:
+                open_price = parse_float(open_price_raw, 'Open price')
+            except ValueError as e:
+                flash(str(e), 'error')
+                return redirect(url_for('trades'))
+
             close_price = None
+
+            if open_price is None:
+                flash('Open price is required for OPEN partial', 'error')
+                return redirect(url_for('trades'))
+
+            if parent_sl is not None:
+                if sort == 'LONG' and parent_sl >= open_price:
+                    flash('For a LONG partial, SL must be below the open price.', 'error')
+                    return redirect(url_for('trades'))
+
+                if sort == 'SHORT' and parent_sl <= open_price:
+                    flash('For a SHORT partial, SL must be above the open price.', 'error')
+                    return redirect(url_for('trades'))
+
+            if parent_tp is not None:
+                if sort == 'LONG' and parent_tp <= open_price:
+                    flash('For a LONG partial, TP must be above the open price.', 'error')
+                    return redirect(url_for('trades'))
+
+                if sort == 'SHORT' and parent_tp >= open_price:
+                    flash('For a SHORT partial, TP must be below the open price.', 'error')
+                    return redirect(url_for('trades'))
+
+
 
             if open_price is None:
                 flash('Open price is required for OPEN partial', 'error')
@@ -971,11 +1012,17 @@ def partial_close_inline_spot(parent_id):
             return redirect(url_for('spot'))
 
         if status == 'OPEN':
-            open_price = request.form.get('open_price')
+            open_price_raw = request.form.get('open_price')
             open_time = request.form.get('open_time')
-            open_price = float(open_price) if open_price else None
+
+            try:
+                open_price = parse_float(open_price_raw, 'Open price')
+            except ValueError as e:
+                flash(str(e), 'error')
+                return redirect(url_for('spot'))
+
             close_price = None
-            close_time = None
+
 
             if open_price is None:
                 flash('Open price is required for OPEN partial', 'error')
@@ -1005,10 +1052,16 @@ def partial_close_inline_spot(parent_id):
             new_parent_status = parent_trade['status']
             parent_close_time = parent_trade['close_time']
 
-        else:  
-            close_price = request.form.get('close_price')
+        else:
+            close_price_raw = request.form.get('close_price')
             close_time = request.form.get('close_time')
-            close_price = float(close_price) if close_price else None
+
+            try:
+                close_price = parse_float(close_price_raw, 'Close price')
+            except ValueError as e:
+                flash(str(e), 'error')
+                return redirect(url_for('spot'))
+
             open_price = parent_trade['open_price']
             open_time = None
 
@@ -1102,23 +1155,25 @@ def user_detail(user_id):
 
     active_type_setups = get_active_trade_type_setups()
 
-    # Parse existing type setups for the template
     selected_type_setups = parse_type_setup(user['type_setup'])
 
     if request.method == 'POST':
         reason = request.form.get('reason', user['reason'])
         feedback = request.form.get('feedback', user['feedback'])
 
-        # Setup fields
         type_setup = request.form.getlist('type_setup')
         confidence = request.form.get('confidence', '').strip()
         setup = request.form.get('setup', '').strip()
 
-        # Validate type setups
+
+        current_type_setups = parse_type_setup(user['type_setup'])
+
         invalid_type_setups = [
             value for value in type_setup
             if value not in active_type_setups
+            and value not in current_type_setups
         ]
+
 
         if invalid_type_setups:
             flash('Invalid trade type setup selected.', 'error')
@@ -1126,7 +1181,6 @@ def user_detail(user_id):
 
         type_setup_json = json.dumps(type_setup)
 
-        # Validate confidence
         if confidence:
             try:
                 confidence = int(confidence)
@@ -1140,14 +1194,12 @@ def user_detail(user_id):
         else:
             confidence = None
 
-        # Validate setup
         if setup and setup not in ('A+', 'A', 'B', 'C'):
             flash('Invalid setup.', 'error')
             return redirect(url_for('user_detail', user_id=user_id))
 
         setup = setup if setup else None
 
-        # Images
         delete_reason = request.form.get('delete_reason_image') == 'true'
         delete_feedback = request.form.get('delete_feedback_image') == 'true'
 
@@ -1157,7 +1209,6 @@ def user_detail(user_id):
         reason_image_filename = user['reason_image']
         feedback_image_filename = user['feedback_image']
 
-        # Reason image
         if delete_reason:
             if user['reason_image']:
                 try:
@@ -1210,7 +1261,6 @@ def user_detail(user_id):
             reason_image.save(filepath)
             reason_image_filename = filename
 
-        # Feedback image
         if delete_feedback:
             if user['feedback_image']:
                 try:
