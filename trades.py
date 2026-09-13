@@ -676,7 +676,7 @@ def edit_trade(user_id):
             (user_id,)
         ).fetchone()
 
-
+        conn.comit()
         return {'success': True}
     
     except Exception as e:
