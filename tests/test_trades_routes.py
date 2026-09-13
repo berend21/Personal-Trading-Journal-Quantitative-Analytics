@@ -542,7 +542,7 @@ def test_edit_trade_updates_trade(
     authenticated_client,
     flask_connection,
 ):
-    flask_connection.execute(
+    cursor = flask_connection.execute(
         """
         INSERT INTO trades (
             symbol,
@@ -572,9 +572,10 @@ def test_edit_trade_updates_trade(
         ),
     )
     flask_connection.commit()
+    trade_id = cursor.lastrowid
 
     response = authenticated_client.post(
-        "/edit/1",
+        f"/edit/{trade_id}",
         data={
             "symbol": "MSFT",
             "open_time": "2026-08-31 11:00",
@@ -592,6 +593,7 @@ def test_edit_trade_updates_trade(
         },
     )
 
+
     assert response.status_code == 200
 
     data = response.get_json()
@@ -599,7 +601,7 @@ def test_edit_trade_updates_trade(
 
     trade = flask_connection.execute(
         "SELECT * FROM trades WHERE id = ?",
-        (1,),
+        (trade_id,),
     ).fetchone()
 
     assert trade is not None
@@ -991,7 +993,7 @@ def test_edit_trade_open_clears_close_values(
     authenticated_client,
     flask_connection,
 ):
-    flask_connection.execute(
+    cursor = flask_connection.execute(
         """
         INSERT INTO trades (
             symbol, type, status, sort,
@@ -1008,19 +1010,23 @@ def test_edit_trade_open_clears_close_values(
     )
     flask_connection.commit()
 
+    trade_id = cursor.lastrowid
+
     response = authenticated_client.post(
-        "/edit/1",
+        f"/edit/{trade_id}",
         data={
             "status": "OPEN",
         },
     )
 
+
     assert response.status_code == 200
 
     trade = flask_connection.execute(
         "SELECT * FROM trades WHERE id = ?",
-        (1,),
+        (trade_id,),
     ).fetchone()
+
 
     assert trade["status"] == "OPEN"
     assert trade["close_price"] is None
