@@ -142,19 +142,19 @@ def test_confidence_interval_can_cross_zero():
 
 
 def test_confidence_interval_classification_positive():
-    result = confidence_interval([1, 2, 3, 4, 5])
+    result = confidence_interval([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
 
     assert classify_confidence_interval(result) == "positive"
 
 
 def test_confidence_interval_classification_inconclusive():
-    result = confidence_interval([-1, 0, 1])
+    result = confidence_interval([-1, 0, 1, -1, 0, 1, -1, 0, 1, 0])
 
     assert classify_confidence_interval(result) == "inconclusive"
 
 
 def test_confidence_interval_classification_negative():
-    result = confidence_interval([-5, -4, -3, -2, -1])
+    result = confidence_interval([-10, -9, -8, -7, -6, -5, -4, -3, -2, -1])
 
     assert classify_confidence_interval(result) == "negative"
 
