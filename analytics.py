@@ -3,7 +3,7 @@ from extensions import app
 from database import get_db
 from login import login_required
 from datetime import datetime, timedelta
-import math
+
 from asset_classifier import get_asset_class, ASSET_CLASSES
 
 VALID_PERIODS = {"monthly", "last_month", "7d", "30d","90d","ytd","all","custom"}
@@ -11,10 +11,11 @@ VALID_ATTRIBUTIONS = {"entry", "exit"}
 TRADE_TYPES = ("HTF", "MTF", "LTF")
 DIRECTIONS = ("LONG", "SHORT")
 
-from analyze.statistics import (safe_float, roundit, percentage, calculate_streaks, calculate_drawdown)
-from analyze.confidence_interval import (confidence_interval, classify_confidence_interval)
+from analyze.statistics import (safe_float, roundit, percentage, calculate_streaks, calculate_drawdown, calculate_trade_statistics)
 from analyze.distribution import calculate_r_distribution
-
+from analyze.confidence_interval import (confidence_interval, classify_confidence_interval, classify_sample_size)
+from analyze.expectancy import calculate_expectancy
+from analyze.attribution import calculate_asset_class_stats
 
 
 def _date_range(
@@ -107,9 +108,7 @@ def _date_range(
     if period == "custom":
         return custom_start, custom_end
 
-    # all
     return None, None
-
 
 
 def _build_filter(
@@ -148,91 +147,6 @@ def _build_filter(
     return " AND ".join(conditions), params
 
 
-
-
-
-def _calculate_asset_class_stats(rows):
-    stats = {
-        asset_class: {
-            "trade_count": 0,
-            "closed_count": 0,
-            "wins": 0,
-            "losses": 0,
-            "breakevens": 0,
-            "total_rr": 0.0,
-            "gross_profit": 0.0,
-            "gross_loss": 0.0,
-        }
-        for asset_class in ASSET_CLASSES
-    }
-
-    for row in rows:
-        symbol = (row["symbol"] or "").strip().upper()
-        asset_class = get_asset_class(symbol)
-
-        if asset_class not in stats:
-            stats[asset_class] = {
-                "trade_count": 0,
-                "closed_count": 0,
-                "wins": 0,
-                "losses": 0,
-                "breakevens": 0,
-                "total_rr": 0.0,
-                "gross_profit": 0.0,
-                "gross_loss": 0.0,
-            }
-
-        data = stats[asset_class]
-        data["trade_count"] += 1
-
-        if row["status"] != "CLOSED" or row["RR"] is None:
-            continue
-
-        rr = safe_float(row["RR"])
-
-        data["closed_count"] += 1
-        data["total_rr"] += rr
-
-        if rr > 0:
-            data["wins"] += 1
-            data["gross_profit"] += rr
-
-        elif rr < 0:
-            data["losses"] += 1
-            data["gross_loss"] += abs(rr)
-
-        else:
-            data["breakevens"] += 1
-
-    for asset_class, data in stats.items():
-        closed_count = data["closed_count"]
-
-        data["win_rate"] = percentage(
-            data["wins"],
-            closed_count,
-        )
-
-        data["average_rr"] = (
-            round(data["total_rr"] / closed_count, 2)
-            if closed_count
-            else 0.0
-        )
-
-        data["profit_factor"] = (
-            round(
-                data["gross_profit"] /
-                data["gross_loss"],
-                2,
-            )
-            if data["gross_loss"] > 0
-            else None
-        )
-
-        data["total_rr"] = round(data["total_rr"], 2)
-
-    return stats
-
-
 @app.route("/analytics", methods=["GET", "POST"])
 @login_required
 def analytics():
@@ -241,11 +155,6 @@ def analytics():
 
     if period not in VALID_PERIODS:
         period = "monthly"
-
-    attribution = request.args.get("attribution", "exit")
-
-    if attribution not in VALID_ATTRIBUTIONS:
-        attribution = "exit"
 
     custom_start = None
     custom_end = None
@@ -287,11 +196,8 @@ def analytics():
         except (TypeError, ValueError):
             return "Invalid custom date range", 400
 
-
     now = datetime.now()
-    
-    
-
+ 
     conn = get_db()
 
 
@@ -339,8 +245,6 @@ def analytics():
         )
 
 
-
-
     performance_where, performance_params = _build_filter(
         period,
         now,
@@ -357,17 +261,6 @@ def analytics():
         custom_end=custom_end,
     )
 
-    entry_count = conn.execute(
-        f"""
-        SELECT COUNT(*)
-        FROM trades
-        WHERE {entry_where}
-        """,
-        entry_params,
-    ).fetchone()[0] or 0
-
-
-
     asset_class_rows = conn.execute(
         f"""
         SELECT
@@ -380,21 +273,76 @@ def analytics():
         performance_params,
     ).fetchall()
 
-    asset_class_stats = _calculate_asset_class_stats(
+    asset_class_stats = calculate_asset_class_stats(
         asset_class_rows
     )
-    
 
 
-    total_trades = conn.execute(
+    asset_class_rr_rows = conn.execute(
         f"""
-        SELECT COUNT(*)
+        SELECT
+            symbol,
+            RR
         FROM trades
-        WHERE {entry_where}
+        WHERE {performance_where}
+        AND status = 'CLOSED'
+        AND RR IS NOT NULL
         """,
-        entry_params,
-    ).fetchone()[0] or 0
+        performance_params,
+    ).fetchall()
 
+
+    asset_class_rr_sequences = {
+        asset_class: []
+        for asset_class in ASSET_CLASSES
+    }
+
+
+    for row in asset_class_rr_rows:
+
+        symbol = (row["symbol"] or "").strip().upper()
+        asset_class = get_asset_class(symbol)
+
+        if asset_class not in asset_class_rr_sequences:
+            asset_class_rr_sequences[asset_class] = []
+
+        asset_class_rr_sequences[asset_class].append(
+            safe_float(row["RR"])
+        )
+
+
+    for asset_class, stats in asset_class_stats.items():
+
+        rr_sequence = asset_class_rr_sequences.get(
+            asset_class,
+            []
+        )
+
+        expectancy_ci = confidence_interval(
+            rr_sequence
+        )
+
+        raw_expectancy = calculate_expectancy(
+            rr_sequence
+        )
+
+        stats["expectancy"] = (
+            roundit(raw_expectancy)
+            if raw_expectancy is not None
+            else 0.0
+        )
+
+        stats["expectancy_ci"] = expectancy_ci
+
+        stats["expectancy_ci_classification"] = (
+            classify_confidence_interval(
+                expectancy_ci
+            )
+        )
+
+        stats["sample_strength"] = classify_sample_size(
+            len(rr_sequence)
+        )
 
     open_trades = conn.execute(
         f"""
@@ -415,170 +363,7 @@ def analytics():
         """,
         entry_params,
     ).fetchone()[0] or 0
-    status_rows = conn.execute(
-        f"""
-        SELECT status, COUNT(*) AS count
-        FROM trades
-        WHERE {entry_where}
-        GROUP BY status
-        ORDER BY status
-        """,
-        entry_params,
-    ).fetchall()
 
-
-    closed_raw = conn.execute(
-        f"""
-        SELECT
-            COUNT(*) AS total,
-
-            SUM(
-                CASE
-                    WHEN RR > 0 THEN 1
-                    ELSE 0
-                END
-            ) AS wins,
-
-            SUM(
-                CASE
-                    WHEN RR = 0 THEN 1
-                    ELSE 0
-                END
-            ) AS breakevens,
-
-            SUM(
-                CASE
-                    WHEN RR < 0 THEN 1
-                    ELSE 0
-                END
-            ) AS losses,
-
-            SUM(RR) AS total_rr,
-            AVG(RR) AS average_rr,
-
-            MAX(RR) AS best_rr,
-            MIN(RR) AS worst_rr,
-
-            AVG(
-                CASE
-                    WHEN RR > 0 THEN RR
-                END
-            ) AS average_win,
-
-            AVG(
-                CASE
-                    WHEN RR < 0 THEN RR
-                END
-            ) AS average_loss,
-
-            SUM(
-                CASE
-                    WHEN RR > 0 THEN RR
-                    ELSE 0
-                END
-            ) AS gross_profit,
-
-            SUM(
-                CASE
-                    WHEN RR < 0 THEN ABS(RR)
-                    ELSE 0
-                END
-            ) AS gross_loss,
-
-            COUNT(
-                CASE
-                    WHEN RR IS NOT NULL THEN 1
-                END
-            ) AS valid_rr_count
-
-        FROM trades
-        WHERE {performance_where}
-          AND status = 'CLOSED'
-          AND RR IS NOT NULL
-        """,
-        performance_params,
-    ).fetchone()
-
-    closed_count = int(closed_raw["total"] or 0)
-    win_count = int(closed_raw["wins"] or 0)
-    loss_count = int(closed_raw["losses"] or 0)
-    breakeven_count = int(closed_raw["breakevens"] or 0)
-
-    total_rr = roundit(closed_raw["total_rr"])
-    average_rr = roundit(closed_raw["average_rr"])
-
-    average_win = roundit(closed_raw["average_win"])
-    average_loss = roundit(closed_raw["average_loss"])
-
-    highest_rr = (
-        roundit(closed_raw["best_rr"])
-        if closed_raw["best_rr"] is not None
-        else None
-    )
-
-    lowest_rr = (
-        roundit(closed_raw["worst_rr"])
-        if closed_raw["worst_rr"] is not None
-        else None
-    )
-
-    gross_profit = roundit(closed_raw["gross_profit"])
-    gross_loss = roundit(closed_raw["gross_loss"])
-
-    win_rate = percentage(win_count, closed_count)
-
-    loss_rate = percentage(loss_count, closed_count)
-
-    breakeven_rate = percentage(
-        breakeven_count,
-        closed_count,
-    )
-
-    # Expectancy = average R per closed trade.
-    # E = (Win rate × Average Win)
-    #     + (Loss rate × Average Loss)
- 
-    expectancy = average_rr
-
-    profit_factor = (
-        round(gross_profit / gross_loss, 2)
-        if gross_loss > 0
-        else None
-    )
-
-    payoff_ratio = (
-        round(average_win / abs(average_loss), 2)
-        if average_loss < 0
-        else None
-    )
-
-    median_row = conn.execute(
-        f"""
-        WITH ranked AS (
-            SELECT
-                RR,
-                ROW_NUMBER() OVER (ORDER BY RR) AS rn,
-                COUNT(*) OVER () AS cnt
-            FROM trades
-            WHERE {performance_where}
-              AND status = 'CLOSED'
-              AND RR IS NOT NULL
-        )
-        SELECT AVG(RR) AS median_rr
-        FROM ranked
-        WHERE rn IN (
-            CAST((cnt + 1) / 2 AS INTEGER),
-            CAST((cnt + 2) / 2 AS INTEGER)
-        )
-        """,
-        performance_params,
-    ).fetchone()
-
-    median_rr = (
-        roundit(median_row["median_rr"])
-        if median_row and median_row["median_rr"] is not None
-        else None
-    )
 
     rr_rows = conn.execute(
         f"""
@@ -591,36 +376,32 @@ def analytics():
         """,
         performance_params,
     ).fetchall()
-
-
+    
+    
     rr_sequence = [
         safe_float(row["RR"])
         for row in rr_rows
     ]
-
-    r_distribution = calculate_r_distribution(
+    trade_stats = calculate_trade_statistics(
         rr_sequence
     )
     
 
+    r_distribution = calculate_r_distribution(
+        rr_sequence
+    )
+
     expectancy_ci = confidence_interval(rr_sequence)
 
-    expectancy_ci_classification = classify_confidence_interval(expectancy_ci)
- 
+    expectancy_ci_classification = classify_confidence_interval(
+        expectancy_ci
+    )
 
-    rr_stddev = 0.0
+    expectancy_sample_size = len(rr_sequence)
 
-    if len(rr_sequence) > 1:
-        mean = sum(rr_sequence) / len(rr_sequence)
-
-        variance = sum(
-            (x - mean) ** 2
-            for x in rr_sequence
-        ) / (len(rr_sequence) - 1)
-
-        rr_stddev = math.sqrt(variance)
-
-    rr_stddev = round(rr_stddev, 2)
+    expectancy_sample_strength = classify_sample_size(
+        expectancy_sample_size
+    )
 
     max_win_streak, max_loss_streak = calculate_streaks(
         rr_sequence
@@ -632,7 +413,6 @@ def analytics():
     current_drawdown = drawdown["current_drawdown"]
     equity_curve = drawdown["equity_curve"]
     drawdown_curve = drawdown["drawdown_curve"]
-
 
 
     ticker_row = conn.execute(
@@ -663,32 +443,26 @@ def analytics():
             sort,
             COUNT(*) AS total,
 
-            SUM(
-                CASE
+            SUM(CASE
                     WHEN status = 'CLOSED'
                     AND RR IS NOT NULL
                     THEN 1
                     ELSE 0
-                END
-            ) AS closed_count,
+                END) AS closed_count,
 
-            SUM(
-                CASE
+            SUM(CASE
                     WHEN status = 'CLOSED'
                     AND RR > 0
                     THEN 1
                     ELSE 0
-                END
-            ) AS wins,
+                END) AS wins,
 
-            SUM(
-                CASE
+            SUM(CASE
                     WHEN status = 'CLOSED'
                     AND RR IS NOT NULL
                     THEN RR
                     ELSE 0
-                END
-            ) AS total_rr
+                END) AS total_rr
 
         FROM trades
         WHERE {performance_where}
@@ -699,6 +473,37 @@ def analytics():
     ).fetchall()
 
 
+    direction_rr_rows = conn.execute(
+        f"""
+        SELECT
+            sort,
+            RR
+        FROM trades
+        WHERE {performance_where}
+        AND status = 'CLOSED'
+        AND RR IS NOT NULL
+        AND sort IN ('LONG', 'SHORT')
+        ORDER BY close_time ASC, id ASC
+        """,
+        performance_params,
+    ).fetchall()
+
+
+    direction_rr_sequences = {
+        "LONG": [],
+        "SHORT": [],
+    }
+
+    for row in direction_rr_rows:
+
+        direction = row["sort"]
+
+        if direction in direction_rr_sequences:
+            direction_rr_sequences[direction].append(
+                safe_float(row["RR"])
+            )
+
+
     direction_stats = {
         direction: {
             "count": 0,
@@ -706,11 +511,17 @@ def analytics():
             "wins": 0,
             "win_rate": 0.0,
             "total_rr": 0.0,
+            "expectancy": 0.0,
+            "expectancy_ci": None,
+            "expectancy_ci_classification": "insufficient_data",
+            "sample_strength": classify_sample_size(0),
         }
         for direction in DIRECTIONS
     }
 
+
     for row in direction_rows:
+
         direction = row["sort"]
 
         if direction not in direction_stats:
@@ -720,14 +531,49 @@ def analytics():
         closed_count = int(row["closed_count"] or 0)
         wins = int(row["wins"] or 0)
 
+        rr_values = direction_rr_sequences.get(
+            direction,
+            []
+        )
+
+        direction_expectancy_ci = confidence_interval(
+            rr_values
+        )
+
+        direction_ci_classification = (
+            classify_confidence_interval(
+                direction_expectancy_ci
+            )
+        )
+
+        direction_sample_strength = classify_sample_size(
+            len(rr_values)
+        )
+        raw_direction_expectancy = calculate_expectancy(
+            rr_values
+        )
+
         direction_stats[direction] = {
             "count": count,
             "closed_count": closed_count,
             "wins": wins,
             "win_rate": percentage(wins, closed_count),
             "total_rr": roundit(row["total_rr"]),
-        }
 
+            "expectancy": (
+                roundit(raw_direction_expectancy)
+                if raw_direction_expectancy is not None
+                else 0.0
+            ),
+
+            "expectancy_ci": direction_expectancy_ci,
+
+            "expectancy_ci_classification":
+                direction_ci_classification,
+
+            "sample_strength":
+                direction_sample_strength,
+        }
 
 
     long_count = direction_stats["LONG"]["count"]
@@ -777,26 +623,11 @@ def analytics():
             SELECT
                 COUNT(*) AS total,
 
-                SUM(
-                    CASE
-                        WHEN RR > 0 THEN 1
-                        ELSE 0
-                    END
-                ) AS wins,
+                SUM(CASE WHEN RR > 0 THEN 1  ELSE 0 END) AS wins,
 
-                SUM(
-                    CASE
-                        WHEN RR < 0 THEN 1
-                        ELSE 0
-                    END
-                ) AS losses,
+                SUM(CASE WHEN RR < 0 THEN 1 ELSE 0 END) AS losses,
 
-                SUM(
-                    CASE
-                        WHEN RR = 0 THEN 1
-                        ELSE 0
-                    END
-                ) AS breakevens,
+                SUM(CASE WHEN RR = 0 THEN 1  ELSE 0 END) AS breakevens,
 
                 SUM(RR) AS total_rr,
                 AVG(RR) AS average_rr
@@ -825,8 +656,55 @@ def analytics():
             "win_rate": percentage(wins, total),
             "total_rr": roundit(row["total_rr"]),
             "average_rr": roundit(row["average_rr"]),
+            "expectancy_ci": None,
+            "expectancy_ci_classification": "insufficient_data",
+            "sample_strength": classify_sample_size(total),
         }
+        type_rr_rows = conn.execute(
+            f"""
+            SELECT RR
+            FROM trades
+            WHERE {performance_where}
+            AND type = ?
+            AND status = 'CLOSED'
+            AND RR IS NOT NULL
+            ORDER BY close_time ASC, id ASC
+            """,
+            performance_params + [trade_type],
+        ).fetchall()
 
+        type_rr_sequence = [
+            safe_float(row["RR"])
+            for row in type_rr_rows
+        ]
+
+        type_ci = confidence_interval(
+            type_rr_sequence
+        )
+
+        raw_type_expectancy = calculate_expectancy(
+            type_rr_sequence
+        )
+
+        type_stats[trade_type]["expectancy"] = (
+            roundit(raw_type_expectancy)
+            if raw_type_expectancy is not None
+            else 0.0
+        )
+
+        type_stats[trade_type]["expectancy_ci"] = type_ci
+
+        type_stats[trade_type][
+            "expectancy_ci_classification"
+        ] = classify_confidence_interval(
+            type_ci
+        )
+
+        type_stats[trade_type]["sample_strength"] = (
+            classify_sample_size(
+                len(type_rr_sequence)
+            )
+        )
 
     long_short_per_type = {
         trade_type: {
@@ -1032,7 +910,6 @@ def analytics():
 
     elif period in {"90d"}:
 
-        # Keep the chart readable by aggregating into weeks.
         weekly_rows = conn.execute(
             f"""
             SELECT
@@ -1116,13 +993,9 @@ def analytics():
     drawdown_chart_values = drawdown_curve
 
 
-    r_multiple_efficiency = (
-        round(total_rr / closed_count, 2)
-        if closed_count > 0
-        else 0.0
-    )
+    positive_expectancy = trade_stats["expectancy"] > 0
 
-    positive_expectancy = expectancy > 0
+
 
     missing_rr_count = conn.execute(
         f"""
@@ -1149,51 +1022,45 @@ def analytics():
 
     analytics_data = {
 
-        "total_trades": int(total_trades),
-        "entry_count" : int(entry_count),
         "closed_count": int(overview_closed_count),
-        "open_count": int(open_trades),
 
-        "win_count": int(win_count),
-        "loss_count": int(loss_count),
-        "breakeven_count": int(breakeven_count),
+        "win_count": trade_stats["win_count"],
+        "loss_count": trade_stats["loss_count"],
+        "breakeven_count": trade_stats["breakeven_count"],
 
-        "win_rate": float(win_rate),
-        "loss_rate": float(loss_rate),
-        "breakeven_rate": float(breakeven_rate),
+        "win_rate": trade_stats["win_rate"],
+        "loss_rate": trade_stats["loss_rate"],
+        "breakeven_rate": trade_stats["breakeven_rate"],
 
-        "total_rr": float(total_rr),
-        "average_rr": float(average_rr),
-        "median_rr": median_rr,
+        "total_rr": trade_stats["total_rr"],
+        "average_rr": trade_stats["average_rr"],
+        "median_rr": trade_stats["median_rr"],
 
-        "expectancy": float(expectancy),
+        "expectancy": trade_stats["expectancy"],
+
 
         "expectancy_ci": expectancy_ci,
         "expectancy_ci_classification": expectancy_ci_classification,
 
+        "expectancy_sample_size": expectancy_sample_size,
+        "expectancy_sample_strength": expectancy_sample_strength,
 
-        "highest_rr": (
-            float(highest_rr)
-            if highest_rr is not None
-            else None
-        ),
 
-        "lowest_rr": (
-            float(lowest_rr)
-            if lowest_rr is not None
-            else None
-        ),
 
-        "average_win": float(average_win),
-        "average_loss": float(average_loss),
+        "highest_rr": trade_stats["highest_rr"],
+        "lowest_rr": trade_stats["lowest_rr"],
 
-        "gross_profit": float(gross_profit),
-        "gross_loss": float(gross_loss),
+        "average_win": trade_stats["average_win"],
+        "average_loss": trade_stats["average_loss"],
 
-        "profit_factor": profit_factor,
-        "payoff_ratio": payoff_ratio,
+        "gross_profit": trade_stats["gross_profit"],
+        "gross_loss": trade_stats["gross_loss"],
 
-        "rr_stddev": float(rr_stddev),
+        "profit_factor": trade_stats["profit_factor"],
+        "payoff_ratio": trade_stats["payoff_ratio"],
+
+        "rr_stddev": trade_stats["rr_stddev"],
+
 
         "max_drawdown": float(max_drawdown),
         "current_drawdown": float(current_drawdown),
@@ -1212,9 +1079,7 @@ def analytics():
         "max_win_streak": int(max_win_streak),
         "max_loss_streak": int(max_loss_streak),
 
-        "r_multiple_efficiency": float(
-            r_multiple_efficiency
-        ),
+  
 
         "positive_expectancy": bool(
             positive_expectancy
