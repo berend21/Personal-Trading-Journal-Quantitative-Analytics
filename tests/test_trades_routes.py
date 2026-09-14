@@ -774,8 +774,11 @@ def test_edit_trade_rejects_missing_risk(
         },
     )
 
-    assert response.status_code == 302
-    assert "/trades" in response.location
+    assert response.status_code == 200
+
+    data = response.get_json()
+    assert data["success"] is False
+    assert data["message"] == "Risk is required."
 
 def test_edit_trade_rejects_zero_risk(
     authenticated_client,
@@ -811,8 +814,11 @@ def test_edit_trade_rejects_zero_risk(
         },
     )
 
-    assert response.status_code == 302
-    assert "/trades" in response.location
+    assert response.status_code == 200
+
+    data = response.get_json()
+    assert data["success"] is False
+    assert data["message"] == "Risk must be greater than 0."
 
 def test_edit_trade_rejects_long_sl_above_open(
     authenticated_client,
