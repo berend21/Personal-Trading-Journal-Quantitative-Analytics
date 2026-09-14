@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 VALID_PERIODS = {
     "monthly",
@@ -138,3 +138,47 @@ def build_filter(
         ])
 
     return " AND ".join(conditions), params
+
+def parse_custom_dates(
+    period,
+    start_raw=None,
+    end_raw=None,
+):
+    if period != "custom":
+        return None, None
+
+    try:
+        if not start_raw or not end_raw:
+            raise ValueError(
+                "Custom start and end dates are required"
+            )
+
+        custom_start = datetime.strptime(
+            start_raw,
+            "%Y-%m-%d",
+        ).replace(
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+
+        custom_end = datetime.strptime(
+            end_raw,
+            "%Y-%m-%d",
+        ).replace(
+            hour=23,
+            minute=59,
+            second=59,
+            microsecond=999999,
+        )
+
+        if custom_end < custom_start:
+            raise ValueError(
+                "Custom end date cannot be before start date"
+            )
+
+        return custom_start, custom_end
+
+    except (TypeError, ValueError):
+        raise ValueError("Invalid custom date range")
