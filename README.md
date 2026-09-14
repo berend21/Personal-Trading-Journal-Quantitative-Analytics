@@ -379,6 +379,7 @@ The project is actively evolving. Areas I intend to improve include:
 - More detailed equity curves
 - Improved drawdown analysis
 - MAE / MFE analysis
+- Bayesian
 - More robust expectancy analysis
 - Strategy/setup performance analysis
 - Better sample-size awareness
