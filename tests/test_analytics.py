@@ -1,5 +1,5 @@
 from datetime import datetime
-from analytics import _date_range
+from analyze.filters import date_range
 from analyze.statistics import (
     calculate_drawdown,
     calculate_streaks,
@@ -122,7 +122,7 @@ class TestDateRange:
     def test_monthly_range(self):
         now = datetime(2026, 8, 15, 14, 30)
 
-        start, end = _date_range("monthly", now)
+        start, end = date_range("monthly", now)
 
         assert start == datetime(2026, 8, 1, 0, 0, 0)
         assert end == datetime(2026, 8, 15, 23, 59, 59, 999999)
@@ -130,7 +130,7 @@ class TestDateRange:
     def test_last_month_range(self):
         now = datetime(2026, 8, 15, 14, 30)
 
-        start, end = _date_range("last_month", now)
+        start, end = date_range("last_month", now)
 
         assert start == datetime(2026, 7, 1, 0, 0, 0)
         assert end == datetime(2026, 7, 31, 23, 59, 59, 999999)
@@ -138,7 +138,7 @@ class TestDateRange:
     def test_ytd_range(self):
         now = datetime(2026, 8, 15, 14, 30)
 
-        start, end = _date_range("ytd", now)
+        start, end = date_range("ytd", now)
 
         assert start == datetime(2026, 1, 1, 0, 0, 0)
         assert end == datetime(2026, 8, 15, 23, 59, 59, 999999)
@@ -147,12 +147,12 @@ class TestDateRange:
     def test_all_returns_no_range(self):
         now = datetime(2026, 8, 15)
 
-        assert _date_range("all", now) == (None, None)
+        assert date_range("all", now) == (None, None)
 
     def test_last_month_range_handles_leap_year(self):
         now = datetime(2024, 3, 15, 14, 30)
 
-        start, end = _date_range("last_month", now)
+        start, end = date_range("last_month", now)
 
         assert start == datetime(2024, 2, 1, 0, 0, 0)
         assert end == datetime(2024, 2, 29, 23, 59, 59, 999999)
@@ -160,7 +160,7 @@ class TestDateRange:
     def test_last_month_range_across_year_boundary(self):
         now = datetime(2026, 1, 15, 14, 30)
 
-        start, end = _date_range("last_month", now)
+        start, end = date_range("last_month", now)
 
         assert start == datetime(2025, 12, 1, 0, 0, 0)
         assert end == datetime(2025, 12, 31, 23, 59, 59, 999999)
