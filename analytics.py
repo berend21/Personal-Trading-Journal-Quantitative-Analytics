@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 
 from asset_classifier import get_asset_class, ASSET_CLASSES
 
-VALID_PERIODS = {"monthly", "last_month", "7d", "30d","90d","ytd","all","custom"}
 VALID_ATTRIBUTIONS = {"entry", "exit"}
 TRADE_TYPES = ("HTF", "MTF", "LTF")
 DIRECTIONS = ("LONG", "SHORT")
@@ -16,136 +15,7 @@ from analyze.distribution import calculate_r_distribution
 from analyze.confidence_interval import (confidence_interval, classify_confidence_interval, classify_sample_size)
 from analyze.expectancy import calculate_expectancy
 from analyze.attribution import calculate_asset_class_stats
-
-
-def _date_range(
-    period,
-    now,
-    custom_start=None,
-    custom_end=None,
-):
-    today_end = now.replace(
-        hour=23,
-        minute=59,
-        second=59,
-        microsecond=999999,
-    )
-
-    if period == "7d":
-        start = (now - timedelta(days=6)).replace(
-            hour=0,
-            minute=0,
-            second=0,
-            microsecond=0,
-        )
-        return start, today_end
-
-    if period == "30d":
-        start = (now - timedelta(days=29)).replace(
-            hour=0,
-            minute=0,
-            second=0,
-            microsecond=0,
-        )
-        return start, today_end
-
-    if period == "90d":
-        start = (now - timedelta(days=89)).replace(
-            hour=0,
-            minute=0,
-            second=0,
-            microsecond=0,
-        )
-        return start, today_end
-
-    if period == "monthly":
-        start = now.replace(
-            day=1,
-            hour=0,
-            minute=0,
-            second=0,
-            microsecond=0,
-        )
-
-        return start, today_end
-
-
-    if period == "last_month":
-        this_month_start = now.replace(
-            day=1,
-            hour=0,
-            minute=0,
-            second=0,
-            microsecond=0,
-        )
-
-        last_month_end = (
-            this_month_start - timedelta(microseconds=1)
-        )
-
-        last_month_start = last_month_end.replace(
-            day=1,
-            hour=0,
-            minute=0,
-            second=0,
-            microsecond=0,
-        )
-
-        return last_month_start, last_month_end
-
-    if period == "ytd":
-        start = now.replace(
-            month=1,
-            day=1,
-            hour=0,
-            minute=0,
-            second=0,
-            microsecond=0,
-        )
-
-        return start, today_end
-
-    if period == "custom":
-        return custom_start, custom_end
-
-    return None, None
-
-
-def _build_filter(
-    period,
-    now,
-    date_field="close_time",
-    custom_start=None,
-    custom_end=None,
-):
-
-    if date_field not in {"open_time", "close_time"}:
-        raise ValueError(
-            f"Invalid analytics date field: {date_field}"
-        )
-
-    conditions = ["parent_id IS NULL"]
-    params = []
-
-    start_date, end_date = _date_range(
-        period,
-        now,
-        custom_start=custom_start,
-        custom_end=custom_end,
-    )
-
-    if start_date and end_date:
-        conditions.append(
-            f"{date_field} >= ? AND {date_field} <= ?"
-        )
-
-        params.extend([
-            start_date.strftime("%Y-%m-%d %H:%M:%S"),
-            end_date.strftime("%Y-%m-%d %H:%M:%S"),
-        ])
-
-    return " AND ".join(conditions), params
-
+from analyze.filters import (VALID_PERIODS, date_range, build_filter, parse_custom_dates)
 
 @app.route("/analytics", methods=["GET", "POST"])
 @login_required
@@ -155,53 +25,23 @@ def analytics():
 
     if period not in VALID_PERIODS:
         period = "monthly"
+        
+    try:
+        custom_start, custom_end = parse_custom_dates(
+            period,
+            request.args.get("start"),
+            request.args.get("end"),
+        )
+    except ValueError:
+        return "Invalid custom date range", 400
 
-    custom_start = None
-    custom_end = None
-
-    if period == "custom":
-
-        custom_start_raw = request.args.get("start")
-        custom_end_raw = request.args.get("end")
-
-        try:
-            if not custom_start_raw or not custom_end_raw:
-                raise ValueError("Custom start and end dates are required")
-
-            custom_start = datetime.strptime(
-                custom_start_raw,
-                "%Y-%m-%d",
-            ).replace(
-                hour=0,
-                minute=0,
-                second=0,
-                microsecond=0,
-            )
-
-            custom_end = datetime.strptime(
-                custom_end_raw,
-                "%Y-%m-%d",
-            ).replace(
-                hour=23,
-                minute=59,
-                second=59,
-                microsecond=999999,
-            )
-
-            if custom_end < custom_start:
-                raise ValueError(
-                    "Custom end date cannot be before start date"
-                )
-
-        except (TypeError, ValueError):
-            return "Invalid custom date range", 400
-
+        
     now = datetime.now()
  
     conn = get_db()
 
 
-    display_start, display_end = _date_range(
+    display_start, display_end = date_range(
         period,
         now,
         custom_start=custom_start,
@@ -245,7 +85,7 @@ def analytics():
         )
 
 
-    performance_where, performance_params = _build_filter(
+    performance_where, performance_params = build_filter(
         period,
         now,
         date_field="close_time",
@@ -253,7 +93,7 @@ def analytics():
         custom_end=custom_end,
     )
 
-    entry_where, entry_params = _build_filter(
+    entry_where, entry_params = build_filter(
         period,
         now,
         date_field="open_time",
