@@ -49,7 +49,7 @@ def migrate_trades_table(conn, database):
         "risk IS NULL OR (risk >= 0 AND risk <= 100)",
         "SL IS NULL OR SL > 0",
         "TP IS NULL OR TP > 0",
-        "RR IS NULL OR (RR >= -1 AND RR <= 1000)",
+        "RR IS NULL OR (RR >= -1000 AND RR <= 1000)",
         "initial_risk IS NULL OR (initial_risk >= 0 AND initial_risk <= 100)",
         "risk_action IS NULL OR risk_action IN ('OPEN', 'CLOSE')",
         "open_price IS NULL OR open_price >= 0",
