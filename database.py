@@ -1,6 +1,8 @@
 import sqlite3
 from flask import g
 import os
+from datetime import datetime, timezone
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
@@ -9,6 +11,133 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 from migrations.gallery_migration import migrate_gallery_table
 from migrations.trade_migration import migrate_trades_table
+
+SCHEMA_VERSION = 2
+
+
+def utc_now():
+    return (
+        datetime.now(timezone.utc)
+        .isoformat(timespec="microseconds")
+        .replace("+00:00", "Z")
+    )
+
+
+def ensure_schema_version_table(conn):
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT name
+        FROM sqlite_master
+        WHERE type = 'table'
+          AND name = 'schema_version'
+    """)
+
+    exists = cursor.fetchone()
+
+    if not exists:
+        cursor.execute("""
+            CREATE TABLE schema_version (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                version INTEGER NOT NULL CHECK (version >= 1),
+                updated_at_utc TEXT NOT NULL
+            )
+        """)
+        return
+
+    cursor.execute("PRAGMA table_info(schema_version)")
+    columns = {row[1] for row in cursor.fetchall()}
+
+    # Correct schema already exists.
+    id_info = cursor.execute("""
+        SELECT pk
+        FROM pragma_table_info('schema_version')
+        WHERE name = 'id'
+    """).fetchone()
+
+    id_is_primary_key = id_info is not None and id_info[0] == 1
+
+    if (
+        "id" in columns
+        and "version" in columns
+        and "updated_at_utc" in columns
+        and id_is_primary_key
+    ):
+        return
+
+    print("Migrating schema_version table.")
+
+    # Keep the existing version if one exists.
+    row = cursor.execute("""
+        SELECT version, updated_at_utc
+        FROM schema_version
+        ORDER BY rowid DESC
+        LIMIT 1
+    """).fetchone()
+
+    version = row[0] if row else 1
+    updated_at_utc = row[1] if row else utc_now()
+
+    cursor.execute("""
+        CREATE TABLE schema_version_new (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            version INTEGER NOT NULL CHECK (version >= 1),
+            updated_at_utc TEXT NOT NULL
+        )
+    """)
+
+    cursor.execute("""
+        INSERT INTO schema_version_new (
+            id,
+            version,
+            updated_at_utc
+        )
+        VALUES (1, ?, ?)
+    """, (
+        version,
+        updated_at_utc,
+    ))
+
+    cursor.execute("DROP TABLE schema_version")
+
+    cursor.execute("""
+        ALTER TABLE schema_version_new
+        RENAME TO schema_version
+    """)
+
+    print("Migrated schema_version table.")
+
+
+
+def get_schema_version(conn):
+    row = conn.execute(
+        "SELECT version FROM schema_version WHERE id = 1"
+    ).fetchone()
+
+    if row is None:
+        return None
+
+    return row["version"]
+
+
+def set_schema_version(conn, version):
+    conn.execute("""
+        INSERT INTO schema_version (
+            id,
+            version,
+            updated_at_utc
+        )
+        VALUES (1, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            version = excluded.version,
+            updated_at_utc = excluded.updated_at_utc
+    """, (
+        version,
+        datetime.now(timezone.utc)
+        .isoformat(timespec="microseconds")
+        .replace("+00:00", "Z"),
+    ))
+
 
 def init_db():
     conn = sqlite3.connect(DATABASE)
@@ -59,7 +188,16 @@ def init_db():
                             CHECK (
                                 risk_action IS NULL
                                 OR risk_action IN ('OPEN', 'CLOSE')
-                            )
+                            ),
+                        FOREIGN KEY (parent_id)
+                            REFERENCES trades(id)
+                            ON DELETE CASCADE
+                            ON UPDATE CASCADE,
+
+                        CHECK (
+                            parent_id IS NULL
+                            OR parent_id != id
+                        )
                         )''')
         
         cursor.execute('''
@@ -267,7 +405,28 @@ def init_db():
         ''')
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_rules_category ON trading_rules(category)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_rules_pinned ON trading_rules(pinned)")
-    
+
+        ensure_schema_version_table(conn)
+
+        current_version = get_schema_version(conn)
+
+        if current_version is None:
+            set_schema_version(conn, SCHEMA_VERSION)
+
+        elif current_version < SCHEMA_VERSION:
+            set_schema_version(conn, SCHEMA_VERSION)
+            print(
+                f"Updated database schema version "
+                f"from {current_version} to {SCHEMA_VERSION}."
+            )
+
+        elif current_version > SCHEMA_VERSION:
+            raise RuntimeError(
+                f"Database schema version {current_version} "
+                f"is newer than application version {SCHEMA_VERSION}."
+            )
+
+
         conn.commit()
 
     except Exception:
