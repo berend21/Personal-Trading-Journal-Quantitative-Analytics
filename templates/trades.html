@@ -292,6 +292,40 @@
             </tbody>
         </table>
     </div>
+    {% if total_pages > 1 %}
+    <div class="pagination">
+
+        {% if has_previous %}
+            <a href="{{ url_for(
+                'trades',
+                page=page - 1,
+                date_filter=request.args.get('date_filter', 'last30'),
+                search=request.args.get('search', '')
+            ) }}">
+                Previous
+            </a>
+        {% endif %}
+
+        <span>
+            Page {{ page }} of {{ total_pages }}
+        </span>
+
+        {% if has_next %}
+            <a href="{{ url_for(
+                'trades',
+                page=page + 1,
+                date_filter=request.args.get('date_filter', 'last30'),
+                search=request.args.get('search', '')
+            ) }}">
+                Next
+            </a>
+        {% endif %}
+
+    </div>
+    {% endif %}
+
+
+
 {% endblock %}
 
 {% block floating_button %}
