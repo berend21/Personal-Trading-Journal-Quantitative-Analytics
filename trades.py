@@ -21,9 +21,6 @@ def trades():
     date_filter = request.args.get('date_filter', 'last30')
     search_query = request.args.get('search', '').strip()
 
-    page = request.args.get('page', 1, type=int)
-    per_page = 30
-    offset = (page - 1) * per_page
 
     conn = get_db()
     params = []
@@ -72,8 +69,43 @@ def trades():
 
     where_clause = " AND ".join(conditions)
 
-    parent_query = f"SELECT * FROM trades WHERE {where_clause} ORDER BY id DESC"
-    parents = conn.execute(parent_query, params).fetchall()[:500]
+    # Pagination
+    per_page = 30
+
+    page = request.args.get('page', 1, type=int)
+    page = max(page, 1)
+
+    count_query = f"""
+        SELECT COUNT(*)
+        FROM trades
+        WHERE {where_clause}
+    """
+
+    total_count = conn.execute(count_query, params).fetchone()[0]
+
+    total_pages = max(1, math.ceil(total_count / per_page))
+
+    # Prevent requests such as ?page=999999 from returning an empty page.
+    if page > total_pages:
+        page = total_pages
+
+    offset = (page - 1) * per_page
+
+    parent_query = f"""
+        SELECT *
+        FROM trades
+        WHERE {where_clause}
+        ORDER BY id DESC
+        LIMIT ? OFFSET ?
+    """
+
+    query_params = params + [per_page, offset]
+
+    parents = conn.execute(
+        parent_query,
+        query_params
+    ).fetchall()
+
 
     parent_ids = [p['id'] for p in parents]
     partials_by_parent = {}
@@ -178,9 +210,15 @@ def trades():
         partials_by_parent=partials_by_parent,
         monthly_rr=monthly_rr,
         page=page,
+        per_page=per_page,
+        total_count=total_count,
+        total_pages=total_pages,
+        has_previous=page > 1,
+        has_next=page < total_pages,
         date_filter=date_filter,
         search=search_query or None
     )
+
 @app.route('/add', methods=['POST'])
 @login_required
 def add_trade():
@@ -732,6 +770,10 @@ def partial_close_inline(parent_id):
         if parent_trade is None:
             flash('Parent trade not found', 'error')
             return redirect(url_for('trades'))
+        if parent_trade['status'] == 'CLOSED':
+            flash('Cannot add a partial trade to a closed parent trade.', 'error')
+            return redirect(url_for('trades'))
+
 
         sort = parent_trade['sort']
 
@@ -1603,9 +1645,6 @@ def recalculate_parent(conn, parent_id):
         elif child['risk_action'] == 'CLOSE':
             closed_risk += risk
 
-            if child['RR'] is not None:
-                realized_r += float(child['RR']) * risk
-
             if child['close_time']:
                 if (
                     last_close_time is None
@@ -1614,6 +1653,23 @@ def recalculate_parent(conn, parent_id):
                     last_close_time = child['close_time']
 
     total_committed_risk = initial_risk + added_risk
+
+    if total_committed_risk > 0:
+        for child in children:
+            if child['risk_action'] != 'CLOSE':
+                continue
+
+            if child['risk'] is None or child['RR'] is None:
+                continue
+
+            child_risk = float(child['risk'])
+            child_rr = float(child['RR'])
+
+            if child_risk > 0:
+                realized_r += child_rr * (
+                    child_risk / total_committed_risk
+                )
+
 
     current_risk = total_committed_risk - closed_risk
 
@@ -1633,6 +1689,7 @@ def recalculate_parent(conn, parent_id):
     else:
         status = 'OPEN'
         close_time = None
+        display_risk = current_risk
 
     realized_r = round(realized_r, 8)
 
