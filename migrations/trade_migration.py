@@ -17,6 +17,12 @@ def migrate_trades_table(conn, database):
 
     table_sql = row[0] or ""
 
+    foreign_keys = cursor.execute(
+        "PRAGMA foreign_key_list(trades)"
+    ).fetchall()
+ 
+
+
     cursor.execute("PRAGMA table_info(trades)")
     columns = {row[1] for row in cursor.fetchall()}
 
@@ -54,12 +60,33 @@ def migrate_trades_table(conn, database):
         "risk_action IS NULL OR risk_action IN ('OPEN', 'CLOSE')",
         "open_price IS NULL OR open_price >= 0",
         "close_price IS NULL OR close_price >= 0",
+        "parent_id IS NULL OR parent_id != id",
+
     ]
 
 
-    if all(constraint in table_sql for constraint in required_constraints):
+    has_parent_foreign_key = any(
+        row[2] == "trades"
+        and row[3] == "parent_id"
+        and row[4] == "id"
+        and row[5].upper() == "CASCADE"   # ON UPDATE
+        and row[6].upper() == "CASCADE"   # ON DELETE
+        for row in foreign_keys
+    )
+
+
+    normalized_table_sql = " ".join(table_sql.split()).lower()
+
+    if (
+        all(
+            " ".join(constraint.split()).lower() in normalized_table_sql
+            for constraint in required_constraints
+        )
+        and has_parent_foreign_key
+    ):
         print("Trades table constraints already present.")
         return
+
 
     print("Trades table requires constraint migration.")
 
@@ -160,6 +187,36 @@ def migrate_trades_table(conn, database):
               AND close_price < 0
             """
         ),
+        (
+            "invalid parent_id",
+            """
+            SELECT id
+            FROM trades
+            WHERE parent_id IS NOT NULL
+            AND parent_id NOT IN (
+                SELECT id FROM trades
+            )
+            """
+        ),
+        (
+            "self-referencing parent_id",
+            """
+            SELECT id
+            FROM trades
+            WHERE parent_id = id
+            """
+        ),
+        (
+            "invalid risk_action",
+            """
+            SELECT id
+            FROM trades
+            WHERE risk_action IS NOT NULL
+            AND risk_action NOT IN ('OPEN', 'CLOSE')
+            """
+        ),
+
+
     ]
 
     for description, query in checks:
@@ -245,7 +302,17 @@ def migrate_trades_table(conn, database):
                     CHECK (
                         risk_action IS NULL
                         OR risk_action IN ('OPEN', 'CLOSE')
-                    )
+                    ),
+                FOREIGN KEY (parent_id)
+                    REFERENCES trades_new(id)
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+                    DEFERRABLE INITIALLY DEFERRED,
+
+                CHECK (
+                    parent_id IS NULL
+                    OR parent_id != id
+                )
             )
         """)
 
@@ -383,12 +450,56 @@ def migrate_trades_table(conn, database):
         print("Verified: all critical trade fields match.")
 
 
-        cursor.execute("DROP TABLE trades")
+        # Commit the migration work so PRAGMA foreign_keys
+        # can actually be changed.
+        conn.commit()
 
-        cursor.execute("""
+        # Temporarily disable foreign-key enforcement.
+        conn.execute("PRAGMA foreign_keys = OFF")
+
+        fk_status = conn.execute(
+            "PRAGMA foreign_keys"
+        ).fetchone()[0]
+
+        if fk_status != 0:
+            raise RuntimeError(
+                "Could not disable SQLite foreign-key enforcement."
+            )
+
+        # Replace the old table.
+        conn.execute("DROP TABLE trades")
+
+        conn.execute("""
             ALTER TABLE trades_new
             RENAME TO trades
         """)
+
+        # Re-enable foreign-key enforcement.
+        conn.execute("PRAGMA foreign_keys = ON")
+
+        fk_status = conn.execute(
+            "PRAGMA foreign_keys"
+        ).fetchone()[0]
+
+        if fk_status != 1:
+            raise RuntimeError(
+                "Could not re-enable SQLite foreign-key enforcement."
+            )
+
+        print("Foreign-key enforcement restored.")
+
+        # Verify the new foreign-key relationships.
+        fk_errors = conn.execute(
+            "PRAGMA foreign_key_check(trades)"
+        ).fetchall()
+
+        if fk_errors:
+            raise RuntimeError(
+                f"Foreign key verification failed: {fk_errors}"
+            )
+
+ 
+        print("Foreign key verification passed.")
         final_count = cursor.execute(
             "SELECT COUNT(*) FROM trades"
         ).fetchone()[0]
