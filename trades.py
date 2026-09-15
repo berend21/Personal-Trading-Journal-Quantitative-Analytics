@@ -9,7 +9,6 @@ from werkzeug.utils import secure_filename
 from PIL import Image
 import math
 
-
 MAX_REASON_LEN = 4000
 MAX_FEEDBACK_LEN = 8000
 
@@ -338,9 +337,17 @@ def add_trade():
         flash('Risk is required.', 'error')
         return redirect(url_for('trades'))
 
+    if not math.isfinite(risk):
+        flash('Risk must be a finite number.', 'error')
+        return redirect(url_for('trades'))
+
     if risk <= 0:
         flash('Risk must be greater than 0.', 'error')
         return redirect(url_for('trades'))
+    if risk > 100:
+        flash('Risk cannot exceed 100.', 'error')
+        return redirect(url_for('trades'))
+
 
 
     if status == 'CLOSED':
@@ -524,11 +531,21 @@ def edit_trade(user_id):
                 'success': False,
                 'message': 'Risk is required.'
             }
+        if not math.isfinite(risk):
+            return {
+                "success": False,
+                "message": "Risk must be a finite number."
+            }
 
         if risk <= 0:
             return {
                 'success': False,
                 'message': 'Risk must be greater than 0.'
+            }
+        if risk >100 :
+            return {
+                'success': False,
+                'message': 'Risk must besmaller than 100.'
             }
 
 
@@ -692,32 +709,19 @@ def delete_trade(user_id):
 
         parent_id = trade['parent_id']
 
-        # DELETING A PARENT delete all children first, then parent.
-        if parent_id is None:
+        # Delete parent or child. If this is a parent, SQLite automatically deletes all children because of ON DELETE CASCADE.
+        conn.execute(
+            'DELETE FROM trades WHERE id=?',
+            (user_id,)
+        )
 
-            conn.execute(
-                'DELETE FROM trades WHERE parent_id=?',
-                (user_id,)
-            )
-
-            conn.execute(
-                'DELETE FROM trades WHERE id=?',
-                (user_id,)
-            )
-        # DELETING A CHILD delete only this child, then recalculate the parent.
-
-        else:
-
-            conn.execute(
-                'DELETE FROM trades WHERE id=?',
-                (user_id,)
-            )
+        # If deleting a child, recalculate the parent.
+        if parent_id is not None:
             recalculate_parent(conn, parent_id)
-
-        conn.commit()
 
     flash('Trade deleted successfully!', 'success')
     return redirect(url_for('trades'))
+
 
 
 @app.route('/partial_close_inline/<int:parent_id>', methods=['POST'])
@@ -775,6 +779,22 @@ def partial_close_inline(parent_id):
         except ValueError as e:
             flash(str(e), 'error')
             return redirect(url_for('trades'))
+
+        if risk is None:
+            flash('Risk must be provided.', 'error')
+            return redirect(url_for('trades'))
+
+        if not math.isfinite(risk):
+            flash('Risk must be a finite number.', 'error')
+            return redirect(url_for('trades'))
+
+        if risk <= 0:
+            flash('Risk must be greater than 0.', 'error')
+            return redirect(url_for('trades'))
+        if risk > 100:
+            flash('Risk cannot exceed 100.', 'error')
+            return redirect(url_for('trades'))
+
 
 
         reason = request.form.get('reason', '')
@@ -998,6 +1018,22 @@ def partial_close_inline_spot(parent_id):
         except ValueError as e:
             flash(str(e), 'error')
             return redirect(url_for('trades'))
+
+        if risk is None:
+            flash('Risk must be provided.', 'error')
+            return redirect(url_for('spot'))
+
+        if not math.isfinite(risk):
+            flash('Risk must be a finite number.', 'error')
+            return redirect(url_for('spot'))
+
+        if risk <= 0:
+            flash('Risk must be greater than 0.', 'error')
+            return redirect(url_for('spot'))
+        if risk > 100:
+            flash('Risk cannot exceed 100.', 'error')
+            return redirect(url_for('spot'))
+
 
 
         reason = request.form.get('reason', '')
@@ -1381,32 +1417,61 @@ def calculate_r_multiple(sort, open_price, close_price, stop_loss):
     return profit_per_unit / risk_per_unit
 
 def calculate_parent_rr_with_partials(parent, partials):
-    total_weighted_r = 0.0
-    total_closed_risk = 0.0
+    """
+    Calculate the parent's realized RR.
 
-    for partial in partials:
-        if partial['risk_action'] != 'CLOSE':
-            continue
+    Risk values are percentages:
+        0.5 = 0.5%
+        1.0 = 1%
+        20  = 20%
 
-        if partial['risk'] is None:
-            continue
+    Each CLOSED child's RR is weighted by the fraction of the
+    total committed risk that the child represents.
+    """
 
-        if partial['RR'] is None:
-            continue
+    initial_risk = float(parent['initial_risk'] or 0)
 
-        risk = float(partial['risk'])
-        rr = float(partial['RR'])
-
-        if risk <= 0:
-            continue
-
-        total_weighted_r += rr * risk
-        total_closed_risk += risk
-
-    if total_closed_risk <= 0:
+    if initial_risk <= 0:
         return 0.0
 
-    return round(total_weighted_r / total_closed_risk, 8)
+    added_risk = 0.0
+    realized_r = 0.0
+
+    # First determine the total committed risk.
+    for child in partials:
+        if child['risk'] is None:
+            continue
+
+        risk = float(child['risk'])
+
+        if child['risk_action'] == 'OPEN':
+            added_risk += risk
+
+    total_committed_risk = initial_risk + added_risk
+
+    if total_committed_risk <= 0:
+        return 0.0
+
+    # Now calculate each CLOSED child's contribution.
+    for child in partials:
+        if child['risk_action'] != 'CLOSE':
+            continue
+
+        if child['risk'] is None or child['RR'] is None:
+            continue
+
+        child_risk = float(child['risk'])
+        child_rr = float(child['RR'])
+
+        if child_risk <= 0:
+            continue
+
+        risk_fraction = child_risk / total_committed_risk
+
+        realized_r += child_rr * risk_fraction
+
+    return round(realized_r, 8)
+
 
 
 
@@ -1564,6 +1629,7 @@ def recalculate_parent(conn, parent_id):
     if current_risk <= 0:
         status = 'CLOSED'
         close_time = last_close_time or parent['close_time']
+        display_risk = initial_risk ## should show initial_risk when parent is closed 
     else:
         status = 'OPEN'
         close_time = None
@@ -1580,7 +1646,7 @@ def recalculate_parent(conn, parent_id):
         WHERE id=?
         ''',
         (
-            round(current_risk, 8),
+            round(display_risk, 8),
             realized_r,
             status,
             close_time,
