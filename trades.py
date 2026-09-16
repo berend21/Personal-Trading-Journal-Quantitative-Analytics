@@ -138,51 +138,57 @@ def trades():
         parent['RR'] = parent['calculated_RR']
 
         if parent['initial_risk'] is not None:
+            try:
+                accounting = recalculate_parent(
+                    conn,
+                    parent['id']
+                )
 
-            initial_risk = float(parent['initial_risk'] or 0)
+                parent['current_risk'] = accounting['current_risk']
+                parent['total_committed_risk'] = accounting['total_committed_risk']
+                parent['closed_risk'] = accounting['closed_risk']
+                parent['added_risk'] = accounting['added_risk']
+                parent['display_risk'] = (
+                    parent['initial_risk']
+                    if accounting['status'] == 'CLOSED'
+                    else accounting['current_risk']
+                )
 
-            added_risk = sum(
-                float(p['risk'] or 0)
-                for p in partials
-                if p['risk_action'] == 'OPEN'
-            )
-            closed_risk = sum(
-                float(p['risk'] or 0)
-                for p in partials
-                if p['risk_action'] == 'CLOSE'
-            )
+                # Use canonical values.
+                parent['status'] = accounting['status']
+                parent['close_time'] = accounting['close_time']
 
-            parent['current_risk'] = round(
-                initial_risk + added_risk - closed_risk,
-                8
-            )
-
-            parent['total_committed_risk'] = round(
-                initial_risk + added_risk,
-                8
-            )
-
-            if parent['status'] == 'CLOSED':
-                parent['display_risk'] = round(initial_risk, 8)
-            else:
-                parent['display_risk'] = parent['current_risk']
+            except ValueError as e:
+                app.logger.error(str(e))
+                flash(str(e), 'error')
+                parent['current_risk'] = None
+                parent['total_committed_risk'] = None
+                parent['display_risk'] = None
 
         else:
+            # Legacy standalone trade.
             current_risk = float(parent['risk'] or 0)
+
             parent['current_risk'] = round(current_risk, 8)
             parent['total_committed_risk'] = round(current_risk, 8)
+            parent['closed_risk'] = 0.0
+            parent['added_risk'] = 0.0
             parent['display_risk'] = round(current_risk, 8)
+
 
         processed_parents.append(parent)
 
     year_month = datetime.now().strftime('%Y-%m')
 
     monthly_parents = conn.execute("""
-        SELECT * FROM trades
+        SELECT *
+        FROM trades
         WHERE parent_id IS NULL
         AND status = 'CLOSED'
+        AND close_time IS NOT NULL
         AND strftime('%Y-%m', close_time) = ?
     """, (year_month,)).fetchall()
+
 
     monthly_rr = 0.0
 
@@ -705,10 +711,7 @@ def edit_trade(user_id):
             )
 
             RR = calculated_rr if calculated_rr is not None else current['RR']
-        if current['parent_id']:
-            risk_action = 'OPEN' if status == 'OPEN' else 'CLOSE'
-        else:
-            risk_action = current['risk_action']
+        risk_action = current['risk_action']
 
 
         conn.execute('''UPDATE trades SET symbol=?, open_time=?, close_time=?, type=?, type_setup=?, confidence=?, setup=?, status=?, sort=?, open_price=?, close_price=?, risk=?, SL=?, TP=?, RR=?, reason=?, feedback=?, risk_action=? WHERE id=?''', 
@@ -716,11 +719,18 @@ def edit_trade(user_id):
 
 
         if current['parent_id']:
-            recalculate_parent(conn, current['parent_id'])
-
+            try:
+                recalculate_parent(conn, current['parent_id'])
+            except ValueError as e:
+                conn.rollback()
+                return {
+                    'success': False,
+                    'message': str(e)
+                }
 
         conn.commit()
         return {'success': True}
+
     
     except Exception as e:
         conn.rollback()
@@ -861,9 +871,6 @@ def partial_close_inline(parent_id):
             flash('Invalid status', 'error')
             return redirect(url_for('trades'))
 
-        if risk is None or risk <= 0:
-            flash('Risk must be provided and > 0', 'error')
-            return redirect(url_for('trades'))
 
         if status == 'OPEN':
             open_price_raw = request.form.get('open_price')
@@ -964,32 +971,19 @@ def partial_close_inline(parent_id):
                 )
                 return redirect(url_for('trades'))
 
-            old_parent_risk = (
-                parent_trade['risk']
-                if parent_trade['risk'] is not None
-                else 0.0
-            )
 
-            if risk > old_parent_risk:
+            accounting = recalculate_parent(conn, parent_id)
+            current_risk = accounting['current_risk']
+
+            if risk > current_risk + 1e-8:
                 flash(
                     f'Cannot close {risk}R. Parent only has '
-                    f'{old_parent_risk}R remaining.',
+                    f'{current_risk:.8f}R remaining.',
                     'error'
                 )
                 return redirect(url_for('trades'))
 
-            new_parent_risk = old_parent_risk - risk
 
-            if new_parent_risk <= 0:
-                new_parent_risk = 0.0
-                new_parent_status = 'CLOSED'
-                parent_close_time = (
-                    parent_trade['close_time']
-                    or datetime.now().strftime('%Y-%m-%d %H:%M')
-                )
-            else:
-                new_parent_status = 'OPEN'
-                parent_close_time = None
 
 
         risk_action = 'OPEN' if status == 'OPEN' else 'CLOSE'
@@ -1459,14 +1453,26 @@ def calculate_r_multiple(sort, open_price, close_price, stop_loss):
     return profit_per_unit / risk_per_unit
 
 def calculate_parent_rr_with_partials(parent, partials):
-    total_committed_risk = float(parent.get("initial_risk") or 0)
+    initial_risk = parse_float(parent.get('initial_risk'), 'Initial risk')
+
+    if initial_risk is None:
+        return float(parent.get('RR') or 0)
+
+    total_committed_risk = initial_risk
 
     for partial in partials:
-        if partial.get("risk_action") == "OPEN":
-            risk = parse_float(partial.get("risk"), "Risk")
+        if partial.get('risk_action') != 'OPEN':
+            continue
 
-            if risk is not None and risk > 0:
-                total_committed_risk += risk
+        risk = parse_float(partial.get('risk'), 'Risk')
+
+        if risk is None:
+            continue
+
+        if risk <= 0:
+            continue
+
+        total_committed_risk += risk
 
     if total_committed_risk <= 0:
         return 0.0
@@ -1474,13 +1480,16 @@ def calculate_parent_rr_with_partials(parent, partials):
     realized_r = 0.0
 
     for partial in partials:
-        if partial.get("risk_action") != "CLOSE":
+        if partial.get('risk_action') != 'CLOSE':
             continue
 
-        risk = parse_float(partial.get("risk"), "Risk")
-        rr = parse_float(partial.get("RR"), "RR")
+        risk = parse_float(partial.get('risk'), 'Risk')
+        rr = parse_float(partial.get('RR'), 'RR')
 
-        if risk is None or risk <= 0:
+        if risk is None:
+            continue
+
+        if risk <= 0:
             continue
 
         if rr is None:
@@ -1489,7 +1498,6 @@ def calculate_parent_rr_with_partials(parent, partials):
         realized_r += rr * (risk / total_committed_risk)
 
     return realized_r
-
 
 
 
@@ -1522,7 +1530,6 @@ def parse_float(value, field_name):
         raise ValueError(f'{field_name} must be a valid number.')
 
 
-
 def recalculate_parent(conn, parent_id):
     parent = conn.execute(
         'SELECT * FROM trades WHERE id=?',
@@ -1542,46 +1549,12 @@ def recalculate_parent(conn, parent_id):
         (parent_id,)
     ).fetchall()
 
+    if parent['initial_risk'] is None and not children:
+        current_risk = float(parent['risk'] or 0)
 
-    if not children:
-
-        if parent['initial_risk'] is not None:
-
-            initial_risk = float(parent['initial_risk'] or 0)
-
-            conn.execute(
-                '''
-                UPDATE trades
-                SET risk=?,
-                    RR=?,
-                    status=?,
-                    close_time=?
-                WHERE id=?
-                ''',
-                (
-                    round(initial_risk, 8),
-                    0.0,
-                    'OPEN',
-                    None,
-                    parent_id
-                )
-            )
-
-            return {
-                'current_risk': round(initial_risk, 8),
-                'total_committed_risk': round(initial_risk, 8),
-                'closed_risk': 0.0,
-                'added_risk': 0.0,
-                'realized_r': 0.0,
-                'status': 'OPEN',
-                'close_time': None
-            }
-
-        # OLD TRADE
-        # No initial_risk means this is an old trade.
         return {
-            'current_risk': float(parent['risk'] or 0),
-            'total_committed_risk': float(parent['risk'] or 0),
+            'current_risk': round(current_risk, 8),
+            'total_committed_risk': round(current_risk, 8),
             'closed_risk': 0.0,
             'added_risk': 0.0,
             'realized_r': float(parent['RR'] or 0),
@@ -1589,85 +1562,120 @@ def recalculate_parent(conn, parent_id):
             'close_time': parent['close_time']
         }
 
-    # OLD TRADES
-    # Keep the existing old-trade accounting untouched for now. There is no initial_risk
-    if parent['initial_risk'] is None:
-        return {
-            'current_risk': float(parent['risk'] or 0),
-            'total_committed_risk': float(parent['risk'] or 0),
-            'closed_risk': 0.0,
-            'added_risk': 0.0,
-            'realized_r': float(parent['RR'] or 0),
-            'status': parent['status'],
-            'close_time': parent['close_time']
-        }
-    # NEW TRADES
 
-    initial_risk = float(parent['initial_risk'] or 0)
+    initial_risk = parse_float(
+        parent['initial_risk'],
+        'Initial risk'
+    )
+
+    if initial_risk is None:
+        raise ValueError(
+            f'Parent {parent_id}: initial_risk is required '
+            f'for partial-trade accounting.'
+        )
+
+    if not math.isfinite(initial_risk):
+        raise ValueError(
+            f'Parent {parent_id}: initial_risk is not finite.'
+        )
+
+    if initial_risk <= 0:
+        raise ValueError(
+            f'Parent {parent_id}: initial_risk must be greater than 0.'
+        )
 
     added_risk = 0.0
     closed_risk = 0.0
-    realized_r = 0.0
+    latest_close_time = None
 
-    last_close_time = None
 
     for child in children:
+        risk = parse_float(child['risk'], 'Risk')
 
-        risk = float(child['risk'] or 0)
+        if risk is None:
+            raise ValueError(
+                f'Parent {parent_id}: child {child["id"]} '
+                f'must have a risk value.'
+            )
 
-        if child['risk_action'] == 'OPEN':
+        if not math.isfinite(risk):
+            raise ValueError(
+                f'Parent {parent_id}: child {child["id"]} '
+                f'risk must be finite.'
+            )
+
+        if risk <= 0:
+            raise ValueError(
+                f'Parent {parent_id}: child {child["id"]} '
+                f'must have positive risk.'
+            )
+
+        risk_action = child['risk_action']
+
+        if risk_action == 'OPEN':
             added_risk += risk
 
-        elif child['risk_action'] == 'CLOSE':
+        elif risk_action == 'CLOSE':
             closed_risk += risk
 
             if child['close_time']:
                 if (
-                    last_close_time is None
-                    or child['close_time'] > last_close_time
+                    latest_close_time is None
+                    or child['close_time'] > latest_close_time
                 ):
-                    last_close_time = child['close_time']
+                    latest_close_time = child['close_time']
+
+        else:
+            raise ValueError(
+                f'Parent {parent_id}: child {child["id"]} '
+                f'has invalid risk_action.'
+            )
+
 
     total_committed_risk = initial_risk + added_risk
 
-    if total_committed_risk > 0:
-        for child in children:
-            if child['risk_action'] != 'CLOSE':
-                continue
-
-            if child['risk'] is None or child['RR'] is None:
-                continue
-
-            child_risk = float(child['risk'])
-            child_rr = float(child['RR'])
-
-            if child_risk > 0:
-                realized_r += child_rr * (
-                    child_risk / total_committed_risk
-                )
-
+    if closed_risk > total_committed_risk + 1e-8:
+        raise ValueError(
+            f'Parent {parent_id}: closed risk '
+            f'({closed_risk:.8f}) exceeds committed risk '
+            f'({total_committed_risk:.8f}).'
+        )
 
     current_risk = total_committed_risk - closed_risk
 
-    if current_risk < -0.00000001:
+    if current_risk < -1e-8:
         raise ValueError(
-            f'Parent {parent_id}: closed risk '
-            f'({closed_risk}) exceeds committed risk '
-            f'({total_committed_risk}).'
+            f'Parent {parent_id}: current risk cannot be negative.'
         )
 
     current_risk = max(0.0, current_risk)
 
-    if current_risk <= 0:
-        status = 'CLOSED'
-        close_time = last_close_time or parent['close_time']
-        display_risk = initial_risk ## should show initial_risk when parent is closed 
-    else:
-        status = 'OPEN'
-        close_time = None
-        display_risk = current_risk
+
+    realized_r = calculate_parent_rr_with_partials(
+        dict(parent),
+        [dict(child) for child in children]
+    )
 
     realized_r = round(realized_r, 8)
+
+    if current_risk <= 1e-8:
+        status = 'CLOSED'
+
+        # Closed parent stores original risk.
+        display_risk = initial_risk
+
+        # Close time comes from the latest CLOSE child.
+        close_time = latest_close_time
+
+    else:
+        status = 'OPEN'
+
+        # Open parent stores remaining/current risk.
+        display_risk = current_risk
+
+        # An open position has no close time.
+        close_time = None
+
 
     conn.execute(
         '''
@@ -1696,6 +1704,7 @@ def recalculate_parent(conn, parent_id):
         'status': status,
         'close_time': close_time
     }
+
 
 
 def get_active_trade_type_setups():
