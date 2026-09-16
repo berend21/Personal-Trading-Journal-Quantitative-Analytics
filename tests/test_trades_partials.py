@@ -186,7 +186,7 @@ class TestRecalculateParentAccountingInvariants:
         assert result["current_risk"] == pytest.approx(1.5)
 
         # Realized R comes only from the closed portion.
-        assert result["realized_r"] == pytest.approx(2.0)
+        assert result["realized_r"] == pytest.approx(1.0)
 
     def test_fractional_risk_is_accounted_for_exactly(self, test_db):
         parent_id = create_parent(
@@ -216,7 +216,7 @@ class TestRecalculateParentAccountingInvariants:
         assert result["added_risk"] == pytest.approx(0.125)
         assert result["closed_risk"] == pytest.approx(0.375)
         assert result["current_risk"] == pytest.approx(0.75)
-        assert result["realized_r"] == pytest.approx(0.9375)
+        assert result["realized_r"] == pytest.approx(0.8333333333)
 
     def test_breakeven_close_reduces_risk_without_realizing_r(self, test_db):
         parent_id = create_parent(test_db, initial_risk=1.0)
@@ -280,7 +280,7 @@ class TestRecalculateParentAccountingInvariants:
         assert result["closed_risk"] == pytest.approx(1.4)
         assert result["current_risk"] == pytest.approx(0.0)
         assert result["status"] == "CLOSED"
-        assert result["realized_r"] == pytest.approx(2.1)
+        assert result["realized_r"] == pytest.approx(1.5)
 
 
 
@@ -373,12 +373,23 @@ class TestRecalculateParentAccountingInvariants:
     @pytest.mark.parametrize(
         "initial_risk,opens,closes,expected_committed,expected_closed,expected_current,expected_realized",
         [
+            # 2R on 0.25 / 1.0 = 0.5R
             (1.0, [], [(0.25, 2.0)], 1.0, 0.25, 0.75, 0.5),
+
+            # 2R on 0.50 / 1.0 = 1.0R
             (1.0, [], [(0.50, 2.0)], 1.0, 0.50, 0.50, 1.0),
-            (1.0, [(0.5, None)], [(0.25, 2.0)], 1.5, 0.25, 1.25, 0.5),
-            (1.0, [(0.5, None)], [(1.5, 1.0)], 1.5, 1.5, 0.0, 1.5),
-            (2.0, [], [(0.5, -2.0)], 2.0, 0.5, 1.5, -1.0),
-            (1.0, [(0.125, None)], [(0.375, 2.5)], 1.125, 0.375, 0.75, 0.9375),
+
+            # 2R on 0.25 / 1.5 = 0.333333R
+            (1.0, [(0.5, None)], [(0.25, 2.0)], 1.5, 0.25, 1.25, 0.3333333333),
+
+            # 1R on 1.5 / 1.5 = 1.0R
+            (1.0, [(0.5, None)], [(1.5, 1.0)], 1.5, 1.5, 0.0, 1.0),
+
+            # -2R on 0.5 / 2.0 = -0.5R
+            (2.0, [], [(0.5, -2.0)], 2.0, 0.5, 1.5, -0.5),
+
+            # 2.5R on 0.375 / 1.125 = 0.833333R
+            (1.0, [(0.125, None)], [(0.375, 2.5)], 1.125, 0.375, 0.75, 0.8333333333),
         ],
     )
     def test_partial_accounting_matrix(
@@ -490,7 +501,7 @@ class TestRecalculateParentAccountingInvariants:
             (parent_id,),
         ).fetchone()
 
-        assert parent["risk"] == pytest.approx(0.0)
+        assert parent["risk"] == pytest.approx(1.0)
         assert parent["status"] == "CLOSED"
         assert parent["close_time"] == "2026-08-31 12:00:00"
 
@@ -562,7 +573,7 @@ class TestRecalculateParentAccountingInvariants:
         assert result["close_time"] == "2026-08-31 12:00:00"
 
 
-    def test_parent_rr_is_weighted_by_closed_risk(selft, test_db):
+    def test_parent_rr_is_weighted_by_closed_risk(self, test_db):
         parent_id = create_parent(test_db, initial_risk=2.0)
 
         create_child(
@@ -586,7 +597,7 @@ class TestRecalculateParentAccountingInvariants:
         result = recalculate_parent(test_db, parent_id)
 
         # (0.5 * 4) + (1.0 * -1) = 1.0
-        assert result["realized_r"] == pytest.approx(1.0)
+        assert result["realized_r"] == pytest.approx(0.5)
 
         # 2.0 initial - 1.5 closed = 0.5 remaining
         assert result["current_risk"] == pytest.approx(0.5)
