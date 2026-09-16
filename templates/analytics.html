@@ -471,14 +471,15 @@
                 <div class="stats-row">
                     <span class="label">Max Drawdown</span>
                     <span class="value negative">
-                        {{ "%.2f"|format(analytics_data.max_drawdown) }}R
+                        {{ "%.2f"|format(analytics_data.max_r_drawdown) }}R
                     </span>
                 </div>
 
                 <div class="stats-row">
                     <span class="label">Current Drawdown</span>
                     <span class="value negative">
-                        {{ "%.2f"|format(analytics_data.current_drawdown) }}R
+                        {{ "%.2f"|format(analytics_data.current_r_drawdown) }}R
+
                     </span>
                 </div>
 
@@ -713,6 +714,82 @@
                     ) }}R
                 </span>
             </div>
+            <div class="stats-row">
+                <span class="label">Expectancy</span>
+                <span class="value
+                    {% if analytics_data.direction_stats.LONG.expectancy > 0 %}
+                        positive
+                    {% elif analytics_data.direction_stats.LONG.expectancy < 0 %}
+                        negative
+                    {% endif %}
+                ">
+                    {{ "%.2f"|format(
+                        analytics_data.direction_stats.LONG.expectancy
+                    ) }}R
+                </span>
+            </div>
+
+            <div class="stats-row">
+                <span class="label">95% CI</span>
+                <span class="value">
+                    {% if analytics_data.direction_stats.LONG.expectancy_ci %}
+                        {{ "%.2f"|format(
+                            analytics_data.direction_stats.LONG.expectancy_ci.lower
+                        ) }}R
+                        –
+                        {{ "%.2f"|format(
+                            analytics_data.direction_stats.LONG.expectancy_ci.upper
+                        ) }}R
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </span>
+            </div>
+
+            <div class="stats-row">
+                <span class="label">Sample Size</span>
+                <span class="value">
+                    N = {{ analytics_data.direction_stats.LONG.closed_count }}
+                </span>
+            </div>
+
+            <div class="stats-row">
+                <span class="label">Edge Status</span>
+                <span class="value
+                    {% if analytics_data.direction_stats.LONG.expectancy_ci_classification == 'positive' %}
+                        positive
+                    {% elif analytics_data.direction_stats.LONG.expectancy_ci_classification == 'negative' %}
+                        negative
+                    {% endif %}
+                ">
+                    {% if analytics_data.direction_stats.LONG.expectancy_ci_classification == 'positive' %}
+                        Statistically Positive
+                    {% elif analytics_data.direction_stats.LONG.expectancy_ci_classification == 'negative' %}
+                        Statistically Negative
+                    {% elif analytics_data.direction_stats.LONG.expectancy_ci_classification == 'inconclusive' %}
+                        Inconclusive
+                    {% else %}
+                        Insufficient Data
+                    {% endif %}
+                </span>
+            </div>
+
+            <div class="stats-row">
+                <span class="label">Sample Strength</span>
+
+                <span class="value">
+                    {% if analytics_data.direction_stats.LONG.sample_strength == 'very_low' %}
+                        Very Low
+                    {% elif analytics_data.direction_stats.LONG.sample_strength == 'low' %}
+                        Low
+                    {% elif analytics_data.direction_stats.LONG.sample_strength == 'moderate' %}
+                        Moderate
+                    {% elif analytics_data.direction_stats.LONG.sample_strength == 'high' %}
+                        High
+                    {% endif %}
+                </span>
+            </div>
+
 
         </div>
 
@@ -760,6 +837,81 @@
                     ) }}R
                 </span>
             </div>
+            <div class="stats-row">
+                <span class="label">Expectancy</span>
+                <span class="value
+                    {% if analytics_data.direction_stats.SHORT.expectancy > 0 %}
+                        positive
+                    {% elif analytics_data.direction_stats.SHORT.expectancy < 0 %}
+                        negative
+                    {% endif %}
+                ">
+                    {{ "%.2f"|format(
+                        analytics_data.direction_stats.SHORT.expectancy
+                    ) }}R
+                </span>
+            </div>
+
+            <div class="stats-row">
+                <span class="label">95% CI</span>
+                <span class="value">
+                    {% if analytics_data.direction_stats.SHORT.expectancy_ci %}
+                        {{ "%.2f"|format(
+                            analytics_data.direction_stats.SHORT.expectancy_ci.lower
+                        ) }}R
+                        –
+                        {{ "%.2f"|format(
+                            analytics_data.direction_stats.SHORT.expectancy_ci.upper
+                        ) }}R
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </span>
+            </div>
+
+            <div class="stats-row">
+                <span class="label">Sample Size</span>
+                <span class="value">
+                    N = {{ analytics_data.direction_stats.SHORT.closed_count }}
+                </span>
+            </div>
+
+            <div class="stats-row">
+                <span class="label">Edge Status</span>
+                <span class="value
+                    {% if analytics_data.direction_stats.SHORT.expectancy_ci_classification == 'positive' %}
+                        positive
+                    {% elif analytics_data.direction_stats.SHORT.expectancy_ci_classification == 'negative' %}
+                        negative
+                    {% endif %}
+                ">
+                    {% if analytics_data.direction_stats.SHORT.expectancy_ci_classification == 'positive' %}
+                        Statistically Positive
+                    {% elif analytics_data.direction_stats.SHORT.expectancy_ci_classification == 'negative' %}
+                        Statistically Negative
+                    {% elif analytics_data.direction_stats.SHORT.expectancy_ci_classification == 'inconclusive' %}
+                        Inconclusive
+                    {% else %}
+                        Insufficient Data
+                    {% endif %}
+                </span>
+            </div>
+            <div class="stats-row">
+                <span class="label">Sample Strength</span>
+
+                <span class="value">
+                    {% if analytics_data.direction_stats.SHORT.sample_strength == 'very_low' %}
+                        Very Low
+                    {% elif analytics_data.direction_stats.SHORT.sample_strength == 'low' %}
+                        Low
+                    {% elif analytics_data.direction_stats.SHORT.sample_strength == 'moderate' %}
+                        Moderate
+                    {% elif analytics_data.direction_stats.SHORT.sample_strength == 'high' %}
+                        High
+                    {% endif %}
+                </span>
+            </div>
+
 
         </div>
 
@@ -836,6 +988,22 @@
                         ) }}R
                     </span>
                 </div>
+                <div class="stats-row">
+                    <span class="label">Expectancy</span>
+
+                    <span class="value
+                        {% if analytics_data.type_stats[type].expectancy > 0 %}
+                            positive
+                        {% elif analytics_data.type_stats[type].expectancy < 0 %}
+                            negative
+                        {% endif %}
+                    ">
+                        {{ "%.2f"|format(
+                            analytics_data.type_stats[type].expectancy
+                        ) }}R
+                    </span>
+                </div>
+
 
                 <div class="stats-row">
                     <span class="label">Long / Short</span>
@@ -846,6 +1014,79 @@
                         {{ analytics_data.long_short_per_type[type].short_count }}
                     </span>
                 </div>
+                <div class="stats-row">
+                    <span class="label">95% CI</span>
+
+                    <span class="value">
+                        {% if analytics_data.type_stats[type].expectancy_ci %}
+
+                            {{ "%.2f"|format(
+                                analytics_data.type_stats[type].expectancy_ci.lower
+                            ) }}R
+
+                            –
+
+                            {{ "%.2f"|format(
+                                analytics_data.type_stats[type].expectancy_ci.upper
+                            ) }}R
+
+                        {% else %}
+                            N/A
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Sample Size</span>
+
+                    <span class="value">
+                        N = {{ analytics_data.type_stats[type].closed_count }}
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Edge Status</span>
+
+                    <span class="value
+                        {% if analytics_data.type_stats[type].expectancy_ci_classification == 'positive' %}
+                            positive
+                        {% elif analytics_data.type_stats[type].expectancy_ci_classification == 'negative' %}
+                            negative
+                        {% endif %}
+                    ">
+
+                        {% if analytics_data.type_stats[type].expectancy_ci_classification == 'positive' %}
+                            Statistically Positive
+
+                        {% elif analytics_data.type_stats[type].expectancy_ci_classification == 'negative' %}
+                            Statistically Negative
+
+                        {% elif analytics_data.type_stats[type].expectancy_ci_classification == 'inconclusive' %}
+                            Inconclusive
+
+                        {% else %}
+                            Insufficient Data
+                        {% endif %}
+
+                    </span>
+                </div>
+                <div class="stats-row">
+                    <span class="label">Sample Strength</span>
+
+                    <span class="value">
+                        {% if analytics_data.type_stats[type].sample_strength == 'very_low' %}
+                            Very Low
+                        {% elif analytics_data.type_stats[type].sample_strength == 'low' %}
+                            Low
+                        {% elif analytics_data.type_stats[type].sample_strength == 'moderate' %}
+                            Moderate
+                        {% elif analytics_data.type_stats[type].sample_strength == 'high' %}
+                            High
+                        {% endif %}
+                    </span>
+                </div>
+
+
 
             </div>
 
@@ -958,6 +1199,82 @@
                         {% endif %}
                     </span>
                 </div>
+
+                <div class="stats-row">
+                    <span class="label">Expectancy</span>
+
+                    <span class="value
+                        {% if stats.expectancy > 0 %}
+                            positive
+                        {% elif stats.expectancy < 0 %}
+                            negative
+                        {% endif %}
+                    ">
+                        {{ "%.2f"|format(stats.expectancy) }}R
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">95% CI</span>
+
+                    <span class="value">
+                        {% if stats.expectancy_ci %}
+                            {{ "%.2f"|format(stats.expectancy_ci.lower) }}R
+                            –
+                            {{ "%.2f"|format(stats.expectancy_ci.upper) }}R
+                        {% else %}
+                            N/A
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Sample Size</span>
+
+                    <span class="value">
+                        N = {{ stats.closed_count }}
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Edge Status</span>
+
+                    <span class="value
+                        {% if stats.expectancy_ci_classification == 'positive' %}
+                            positive
+                        {% elif stats.expectancy_ci_classification == 'negative' %}
+                            negative
+                        {% endif %}
+                    ">
+                        {% if stats.expectancy_ci_classification == 'positive' %}
+                            Statistically Positive
+                        {% elif stats.expectancy_ci_classification == 'negative' %}
+                            Statistically Negative
+                        {% elif stats.expectancy_ci_classification == 'inconclusive' %}
+                            Inconclusive
+                        {% else %}
+                            Insufficient Data
+                        {% endif %}
+                    </span>
+                </div>
+
+                <div class="stats-row">
+                    <span class="label">Sample Strength</span>
+
+                    <span class="value">
+                        {% if stats.sample_strength == 'very_low' %}
+                            Very Low
+                        {% elif stats.sample_strength == 'low' %}
+                            Low
+                        {% elif stats.sample_strength == 'moderate' %}
+                            Moderate
+                        {% elif stats.sample_strength == 'high' %}
+                            High
+                        {% endif %}
+                    </span>
+                </div>
+
+
 
             </div>
 
@@ -1518,7 +1835,8 @@ document.addEventListener("DOMContentLoaded", function () {
     if (equityCanvas) {
 
         const equityData =
-            {{ analytics_data.equity_curve|tojson }};
+            {{ analytics_data.r_curve|tojson }};
+
 
         new Chart(
             equityCanvas.getContext('2d'),
