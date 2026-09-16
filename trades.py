@@ -1459,60 +1459,36 @@ def calculate_r_multiple(sort, open_price, close_price, stop_loss):
     return profit_per_unit / risk_per_unit
 
 def calculate_parent_rr_with_partials(parent, partials):
-    """
-    Calculate the parent's realized RR.
+    total_committed_risk = float(parent.get("initial_risk") or 0)
 
-    Risk values are percentages:
-        0.5 = 0.5%
-        1.0 = 1%
-        20  = 20%
+    for partial in partials:
+        if partial.get("risk_action") == "OPEN":
+            risk = parse_float(partial.get("risk"), "Risk")
 
-    Each CLOSED child's RR is weighted by the fraction of the
-    total committed risk that the child represents.
-    """
-
-    initial_risk = float(parent['initial_risk'] or 0)
-
-    if initial_risk <= 0:
-        return 0.0
-
-    added_risk = 0.0
-    realized_r = 0.0
-
-    # First determine the total committed risk.
-    for child in partials:
-        if child['risk'] is None:
-            continue
-
-        risk = float(child['risk'])
-
-        if child['risk_action'] == 'OPEN':
-            added_risk += risk
-
-    total_committed_risk = initial_risk + added_risk
+            if risk is not None and risk > 0:
+                total_committed_risk += risk
 
     if total_committed_risk <= 0:
         return 0.0
 
-    # Now calculate each CLOSED child's contribution.
-    for child in partials:
-        if child['risk_action'] != 'CLOSE':
+    realized_r = 0.0
+
+    for partial in partials:
+        if partial.get("risk_action") != "CLOSE":
             continue
 
-        if child['risk'] is None or child['RR'] is None:
+        risk = parse_float(partial.get("risk"), "Risk")
+        rr = parse_float(partial.get("RR"), "RR")
+
+        if risk is None or risk <= 0:
             continue
 
-        child_risk = float(child['risk'])
-        child_rr = float(child['RR'])
-
-        if child_risk <= 0:
+        if rr is None:
             continue
 
-        risk_fraction = child_risk / total_committed_risk
+        realized_r += rr * (risk / total_committed_risk)
 
-        realized_r += child_rr * risk_fraction
-
-    return round(realized_r, 8)
+    return realized_r
 
 
 
