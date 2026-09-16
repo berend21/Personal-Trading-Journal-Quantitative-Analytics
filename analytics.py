@@ -204,6 +204,9 @@ def analytics():
         entry_params,
     ).fetchone()[0] or 0
 
+    total_trades = int(open_trades) + int(overview_closed_count)
+
+
 
     rr_rows = conn.execute(
         f"""
@@ -247,12 +250,14 @@ def analytics():
         rr_sequence
     )
 
-    drawdown = calculate_drawdown(rr_sequence)
+    r_drawdown = calculate_drawdown(rr_sequence)
 
-    max_drawdown = drawdown["max_drawdown"]
-    current_drawdown = drawdown["current_drawdown"]
-    equity_curve = drawdown["equity_curve"]
-    drawdown_curve = drawdown["drawdown_curve"]
+    max_r_drawdown = r_drawdown["max_drawdown"]
+    current_r_drawdown = r_drawdown["current_drawdown"]
+    r_curve = r_drawdown["equity_curve"]
+    r_drawdown_curve = r_drawdown["drawdown_curve"]
+
+    
 
 
     ticker_row = conn.execute(
@@ -828,9 +833,10 @@ def analytics():
         ]
 
 
-    equity_chart_values = equity_curve
+    r_chart_values = r_curve
 
-    drawdown_chart_values = drawdown_curve
+    r_drawdown_chart_values = r_drawdown_curve
+
 
 
     positive_expectancy = trade_stats["expectancy"] > 0
@@ -885,7 +891,7 @@ def analytics():
         "expectancy_sample_size": expectancy_sample_size,
         "expectancy_sample_strength": expectancy_sample_strength,
 
-
+        "total_trades": total_trades,
 
         "highest_rr": trade_stats["highest_rr"],
         "lowest_rr": trade_stats["lowest_rr"],
@@ -902,16 +908,17 @@ def analytics():
         "rr_stddev": trade_stats["rr_stddev"],
 
 
-        "max_drawdown": float(max_drawdown),
-        "current_drawdown": float(current_drawdown),
+        "max_r_drawdown": float(max_r_drawdown),
+        "current_r_drawdown": float(current_r_drawdown),
         "r_distribution": r_distribution,
 
         "max_drawdown_duration": int(
-            drawdown["max_drawdown_duration"]
+            r_drawdown["max_drawdown_duration"]
         ),
+
         "recovery_trades": (
-            int(drawdown["recovery_trades"])
-            if drawdown["recovery_trades"] is not None
+            int(r_drawdown["recovery_trades"])
+            if r_drawdown["recovery_trades"] is not None
             else None
         ),
 
@@ -960,8 +967,10 @@ def analytics():
         "rr_labels": rr_labels,
         "rr_values": rr_values,
 
-        "equity_curve": equity_chart_values,
-        "drawdown_curve": drawdown_chart_values,
+        "r_curve": r_chart_values,
+        "drawdown_curve": r_drawdown_chart_values,
+
+
 
         "missing_rr_count": int(
             missing_rr_count
