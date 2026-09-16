@@ -216,7 +216,9 @@ class TestCalculateRMultiple:
 class TestPartialRCalculation:
 
     def test_weighted_partial_rr(self):
-        parent = {}
+        parent = {
+            "initial_risk": 2.0,
+        }
 
         partials = [
             {
@@ -239,6 +241,7 @@ class TestPartialRCalculation:
         assert result == pytest.approx(1.0)
 
     def test_weighted_partial_rr_respects_risk_size(self):
+
         partials = [
             {
                 "risk_action": "CLOSE",
@@ -251,9 +254,12 @@ class TestPartialRCalculation:
                 "RR": -1.0,
             },
         ]
+        parent = {
+            "initial_risk": 4.0,
+        }
 
         result = calculate_parent_rr_with_partials(
-            {},
+            parent,
             partials,
         )
 
@@ -273,13 +279,16 @@ class TestPartialRCalculation:
                 "RR": 2.0,
             },
         ]
+        parent = {
+                    "initial_risk": 1.0,
+                }
 
         result = calculate_parent_rr_with_partials(
-            {},
+            parent,
             partials,
         )
 
-        assert result == pytest.approx(2.0)
+        assert result == pytest.approx(2 / 3)
 
     def test_missing_rr_is_ignored(self):
         partials = [
@@ -294,13 +303,16 @@ class TestPartialRCalculation:
                 "RR": 2.0,
             },
         ]
+        parent = {
+            "initial_risk": 2.0,
+        }
 
         result = calculate_parent_rr_with_partials(
-            {},
+            parent,
             partials,
         )
 
-        assert result == pytest.approx(2.0)
+        assert result == pytest.approx(1.0)
 
     def test_missing_risk_is_ignored(self):
         partials = [
@@ -315,13 +327,16 @@ class TestPartialRCalculation:
                 "RR": 2.0,
             },
         ]
+        parent = {
+            "initial_risk": 2.0,
+        }
 
         result = calculate_parent_rr_with_partials(
-            {},
+            parent,
             partials,
         )
 
-        assert result == pytest.approx(2.0)
+        assert result == pytest.approx(1.0)
 
     def test_non_positive_risk_is_ignored(self):
         partials = [
@@ -341,13 +356,16 @@ class TestPartialRCalculation:
                 "RR": 2,
             },
         ]
+        parent = {
+            "initial_risk": 2.0,
+        }
 
         result = calculate_parent_rr_with_partials(
-            {},
+            parent,
             partials,
         )
 
-        assert result == pytest.approx(2.0)
+        assert result == pytest.approx(1.0)
 
     def test_no_valid_partial_closes_returns_zero(self):
         result = calculate_parent_rr_with_partials(
@@ -370,9 +388,12 @@ class TestPartialRCalculation:
                 "RR": 0.0,
             },
         ]
+        parent = {
+            "initial_risk": 3.0,
+        }
 
         result = calculate_parent_rr_with_partials(
-            {},
+            parent,
             partials,
         )
 
@@ -399,16 +420,19 @@ class TestPartialRCalculation:
                 "RR": 99.0,
             },
         ]
+        parent = {
+            "initial_risk": 4.0,
+        }
 
         reversed_partials = list(reversed(partials))
 
         result = calculate_parent_rr_with_partials(
-            {},
+            parent,
             partials,
         )
 
         reversed_result = calculate_parent_rr_with_partials(
-            {},
+            parent,
             reversed_partials,
         )
 
