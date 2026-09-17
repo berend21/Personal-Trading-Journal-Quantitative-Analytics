@@ -1,23 +1,26 @@
-from extensions import app
 import os
+from pathlib import Path
+from datetime import timedelta
 
 SECRET_KEY = os.environ.get("FLASK_SECRET_KEY")
+
 if not SECRET_KEY:
     raise RuntimeError(
         "FLASK_SECRET_KEY is not set. "
         "Set it before starting the app."
     )
 
-app.config["SECRET_KEY"] = SECRET_KEY
+
+SESSION_COOKIE_SAMESITE = "Strict"
+SESSION_COOKIE_SECURE = True
+SESSION_COOKIE_HTTPONLY = True
+OWNER_USER_ID = 1
 
 
-app.config['SESSION_COOKIE_SAMESITE'] = "Strict"
-app.config['SESSION_COOKIE_SECURE'] = False
-app.config['SESSION_COOKIE_HTTPONLY'] = True 
+WTF_CSRF_TIME_LIMIT = 86400
 
+MAX_CONTENT_LENGTH = 64 * 1024 * 1024
 
-app.config['PERMANENT_SESSION_LIFETIME'] = 86400
-app.config['WTF_CSRF_TIME_LIMIT'] = 86400
-app.config['UPLOAD_FOLDER']= 'static/uploads'
-app.config["MAX_CONTENT_LENGTH"] = 64*1024*1024
+UPLOAD_FOLDER = Path(__file__).resolve().parent / "static" / "uploads"
 
+PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
