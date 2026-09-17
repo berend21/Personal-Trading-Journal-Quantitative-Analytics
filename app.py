@@ -35,17 +35,17 @@ app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
 ##Import modules
 from database import init_db, get_db, close_db
 app.teardown_appcontext(close_db)
-from login import *
-from dashboard import *
-from spot import *
-from journal import *
-from gallery import *
-from analytics import *
-from notes import *
-from knowledge import *
-from settings import *
-from todo import *
-from trades import *
+from login import login_required
+from dashboard import dashboard
+from spot import spot
+from journal import journal, render_journal_calendar
+from gallery import gallery
+from analytics import analytics
+from notes import notes
+from knowledge import knowledge
+from settings import settings
+from todo import todo
+from trades import trades, user_detail
 from symbol_icons import get_symbol_icon
 
 @app.before_request
