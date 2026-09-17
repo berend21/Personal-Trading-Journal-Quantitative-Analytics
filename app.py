@@ -1,26 +1,24 @@
-from flask import render_template, request, redirect, url_for, flash, session, send_file, jsonify, g
+from flask import render_template, request, redirect, url_for, flash, session, jsonify, g
+
 import os
-
-from functools import wraps
 import io
-from datetime import datetime, timedelta
-
-from flask_wtf.csrf import CSRFProtect, CSRFError
+from datetime import datetime
+from flask_wtf.csrf import  CSRFError
 from PIL import Image
-
 import logging
 from logging.handlers import RotatingFileHandler
 from extensions import app
 
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 
 load_dotenv()
+import config
 
-csrf = CSRFProtect(app)
+app.config.from_object(config)
+OWNER_USER_ID = app.config["OWNER_USER_ID"]
 
-handler = RotatingFileHandler('app.log', maxBytes=10000000, backupCount=5)  # 10MB per file, keep 5 backups
+
+handler = RotatingFileHandler('app.log', maxBytes=10000000, backupCount=5)  
 handler.setLevel(logging.DEBUG)  
 handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'))
 app.logger.addHandler(handler)
@@ -28,9 +26,6 @@ app.logger.setLevel(logging.DEBUG)
 
 logging.basicConfig(handlers=[handler], level=logging.DEBUG)
 
-import config
-app.config.from_object(config)
-app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
 
 ##Import modules
 from database import init_db, get_db, close_db
@@ -46,7 +41,7 @@ from knowledge import knowledge
 from settings import settings
 from todo import todo
 from trades import trades, user_detail
-from symbol_icons import get_symbol_icon
+
 
 @app.before_request
 def load_current_user():
@@ -57,10 +52,10 @@ def load_current_user():
             '''
             SELECT id, email, display_name, created_at
             FROM users
-            WHERE id = 1
-            '''
+            WHERE id = ?
+            ''',
+            (OWNER_USER_ID,)
         ).fetchone()
-
 
 
 @app.context_processor
@@ -124,7 +119,7 @@ def parse_time(s):
             continue
     return None
 
-def compress_image(file, max_width=2000, quality=100):  #
+def compress_image(file, max_width=2000, quality=100):  
     try:
         file.seek(0)  
         img = Image.open(file)
@@ -132,7 +127,7 @@ def compress_image(file, max_width=2000, quality=100):  #
         original_format = img.format.lower() if img.format else 'jpeg'
 
         if original_format in ['jpg', 'jpeg'] and img.width <= max_width:
-            file.seek(0)  # Return original untouched
+            file.seek(0)  
             logging.info("Skipping compression for JPEG (no resize needed)")
             return file
 
@@ -160,7 +155,7 @@ def compress_image(file, max_width=2000, quality=100):  #
         file.seek(0)  
         return file  
 
-@app.route('/rules', methods=['GET', 'POST'])
+@app.route('/rules', methods=['GET'])
 @login_required
 def rules():
     return render_template('rules.html')
