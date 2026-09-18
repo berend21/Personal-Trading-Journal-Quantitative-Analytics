@@ -8,6 +8,7 @@ import time
 from werkzeug.utils import secure_filename
 from PIL import Image
 import math
+from utils.formatting import parse_time
 
 MAX_REASON_LEN = 4000
 MAX_FEEDBACK_LEN = 8000
@@ -1501,16 +1502,7 @@ def calculate_parent_rr_with_partials(parent, partials):
 
 
 
-def parse_time(s):
-    if not s:
-        return None
-    s = s.replace('T', ' ').strip()
-    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"):
-        try:
-            return datetime.strptime(s, fmt)
-        except ValueError:
-            continue
-    return None
+
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
