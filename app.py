@@ -1,22 +1,16 @@
 from flask import render_template, request, redirect, url_for, flash, session, jsonify, g
-
 import os
-import io
-from datetime import datetime
 from flask_wtf.csrf import  CSRFError
-from PIL import Image
+
 import logging
 from logging.handlers import RotatingFileHandler
 from extensions import app
-
 from dotenv import load_dotenv
-
 load_dotenv()
 import config
 
 app.config.from_object(config)
 OWNER_USER_ID = app.config["OWNER_USER_ID"]
-
 
 handler = RotatingFileHandler('app.log', maxBytes=10000000, backupCount=5)  
 handler.setLevel(logging.DEBUG)  
@@ -26,8 +20,6 @@ app.logger.setLevel(logging.DEBUG)
 
 logging.basicConfig(handlers=[handler], level=logging.DEBUG)
 
-
-##Import modules
 from database import init_db, get_db, close_db
 app.teardown_appcontext(close_db)
 from login import login_required
@@ -41,7 +33,8 @@ from knowledge import knowledge
 from settings import settings
 from todo import todo
 from trades import trades, user_detail
-
+from utils.formatting import parse_time, smart_price
+from services.media_service import compress_image
 
 @app.before_request
 def load_current_user():
@@ -56,7 +49,6 @@ def load_current_user():
             ''',
             (OWNER_USER_ID,)
         ).fetchone()
-
 
 @app.context_processor
 def inject_csrf_token():
@@ -98,7 +90,6 @@ def add_security_headers(response):
         "base-uri 'self'; "
         "form-action 'self';"
     )
-
     return response
 
 KNOWLEDGE_UPLOAD_FOLDER = 'static/uploads/knowledge'
@@ -108,58 +99,11 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'mp4', 'webm', 'ogg'}
 MAX_REASON_LEN    = 4000
 MAX_FEEDBACK_LEN  = 8000
 
-def parse_time(s):
-    if not s:
-        return None
-    s = s.replace('T', ' ').strip()
-    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"):
-        try:
-            return datetime.strptime(s, fmt)
-        except ValueError:
-            continue
-    return None
-
-def compress_image(file, max_width=2000, quality=100):  
-    try:
-        file.seek(0)  
-        img = Image.open(file)
-        file.seek(0)  
-        original_format = img.format.lower() if img.format else 'jpeg'
-
-        if original_format in ['jpg', 'jpeg'] and img.width <= max_width:
-            file.seek(0)  
-            logging.info("Skipping compression for JPEG (no resize needed)")
-            return file
-
-        resized = False
-        if img.width > max_width:
-            ratio = max_width / float(img.width)
-            new_height = int(float(img.height) * ratio)
-            img = img.resize((max_width, new_height), Image.LANCZOS)
-            resized = True
-        
-        output = io.BytesIO()
-        
-        if original_format in ['jpg', 'jpeg']:
-            img.save(output, format='JPEG', quality=quality, optimize=True)
-        elif original_format == 'png':
-            img.save(output, format='PNG', optimize=True, compress_level=5)  
-        else:
-
-            img.save(output, format='PNG', optimize=True, compress_level=5)
-        
-        output.seek(0)
-        return output
-    except Exception as e:
-        logging.error(f"Image compression failed: {e}")
-        file.seek(0)  
-        return file  
 
 @app.route('/rules', methods=['GET'])
 @login_required
 def rules():
     return render_template('rules.html')
-
 
 @app.route('/toggle_theme', methods=['POST'])
 @login_required
@@ -168,38 +112,6 @@ def toggle_theme():
     session['theme'] = 'dark' if current == 'light' else 'light'
     return redirect(request.referrer or url_for('index'))
 
-
-def smart_price(value):
-    try:
-        if value is None:
-            return ""
-        val = float(value)
-        if val == 0:
-            return "0"
-        abs_val = abs(val)
-        if abs_val < 1e-6:
-            return f"{val:.2e}"
-
-        if abs_val < 0.01:
-            prec = 8
-        elif abs_val < 1:
-            prec = 6
-        elif abs_val < 10:
-            prec = 5
-        elif abs_val < 1000:
-            prec = 3
-        elif abs_val < 10000:
-            prec = 2
-        elif abs_val < 100000:
-            prec = 1
-        else:
-            prec = 0
-
-        formatted = f"{val:.{prec}f}"
-        formatted = formatted.rstrip('0').rstrip('.') if '.' in formatted else formatted
-        return formatted
-    except Exception:
-        return str(value)
 
 app.jinja_env.filters['smart_price'] = smart_price
 
@@ -215,7 +127,6 @@ def get_date_filter(start_date=None, end_date=None):
         return "AND close_time <= :end_date", {"end_date": end_date}
     else:
         return "", {}
-
 
 if __name__ == '__main__':
     init_db()
