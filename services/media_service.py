@@ -1,5 +1,5 @@
 from PIL import Image
-from io import io
+import io
 
 def compress_image(file, max_width=2000, quality=100):  
     try:
